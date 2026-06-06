@@ -642,10 +642,7 @@ function getInputs() {
     // TJP-avsättning: från avtal+lön om möjligt, annars manuellt fält
     tjpContrib:     (tjpContribFromAvtal($("avtal")?.value || "ingen", +($("salary")?.value || 0)) ?? +($("tjpContrib")?.value || 0)),
     avtal:          $("avtal")?.value || "ingen",
-    // Lön driver allmän pension (Pensionsmyndighetens metod); annars direkt-värdet
-    allmanMonthly:  (+($("salary")?.value || 0) > 0)
-                      ? allmanAt65Full(+$("salary").value)
-                      : +$("allmanMonthly").value,
+    allmanMonthly:  +$("allmanMonthly").value,   // fältet är källa; lön för-ifyller det
     realReturn:     +$("realReturn").value,
     inflation:      +$("inflation").value,
   };
@@ -656,6 +653,14 @@ function recalc() {
   _kommunalskatt = getKommunalskatt();
   const krEl = document.getElementById("kommunRate");
   if (krEl) krEl.textContent = `${(_kommunalskatt*100).toFixed(2)}% kommunalskatt`;
+
+  // För-ifyll allmän pension från lön (om användaren inte ändrat manuellt)
+  const salaryVal = +($("salary")?.value || 0);
+  const amField = $("allmanMonthly");
+  if (amField && salaryVal > 0 && !amField._userEdited) {
+    amField.value = Math.round(allmanAt65Full(salaryVal));
+  }
+
   const inputs = getInputs();
 
   // Visa avtals-info: avsättning + tidigast uttag
@@ -674,16 +679,16 @@ function recalc() {
     }
   }
 
-  // Visa beräknad allmän pension från lön
-  const salary = +($("salary")?.value || 0);
+  // Hint på lön-fältet
   const acEl = document.getElementById("allmanComputed");
   if (acEl) {
-    if (salary > 0) {
-      const full = allmanAt65Full(salary);
-      const eff = full * allmanFactor(inputs.retire);
+    if (salaryVal > 0) {
+      const eff = inputs.allmanMonthly * allmanFactor(inputs.retire);
       acEl.textContent = inputs.retire < 65
-        ? `≈ ${fmtKr(eff)}/mån allmän pension (reducerad för frihet ${inputs.retire})`
-        : `≈ ${fmtKr(full)}/mån allmän pension`;
+        ? `→ fyller i fältet nedan · vid frihet ${inputs.retire} blir den ≈ ${fmtKr(eff)}/mån`
+        : `→ fyller i allmän pension nedan`;
+    } else if (amField && amField._userEdited) {
+      acEl.textContent = "eller fyll i allmän pension direkt nedan";
     } else {
       acEl.textContent = "räknar allmän pension åt dig";
     }
@@ -1660,7 +1665,8 @@ function setupLifestyleChips() {
 
 // ─── Wire up inputs ───────────────────────────────────────────────────────────
 document.querySelectorAll("input, select").forEach(el => {
-  if (el.id === "customNeedInput") return; // hanteras separat
+  if (el.id === "customNeedInput") return;  // hanteras separat
+  if (el.id === "allmanMonthly") return;    // hanteras separat (override-flagga)
   el.addEventListener("input",  recalc);
   el.addEventListener("change", recalc);
 });
@@ -1739,6 +1745,13 @@ $("advancedToggle")?.addEventListener("click", () => {
 
 ["feeHigh","feeLow"].forEach(id =>
   document.getElementById(id)?.addEventListener("input", renderFeeDrag));
+
+// Manuell ändring av allmän pension → sluta för-ifylla från lön (flagga FÖRE recalc)
+$("allmanMonthly")?.addEventListener("input", () => {
+  const el = $("allmanMonthly");
+  el._userEdited = !(!el.value || +el.value === 0);  // tomt/0 → återgå till auto
+  recalc();
+});
 
 window.addEventListener("DOMContentLoaded", () => {
   populateKommunList();
