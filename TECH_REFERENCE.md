@@ -86,6 +86,28 @@ Matas till bygg-agenter för att eliminera hallucination. Verifiera siffror årl
   tjänstepension fördelat så lön+pension < skiktgräns, allmän pension sist/jämnt
 - **Status:** 🔶 nästa att bygga — `bridge_sim` har grund-ordning, behöver skiktgräns-optimering
 
+### Allmän pension — Pensionsmyndighetens faktiska beräkning
+- **Källa:** pensionsmyndigheten.se — "Så beräknas din pension"
+- **Avsättning:** 18,5% av pensionsunderlaget per arbetsår
+  - 16% → inkomstpension (fördelningssystem, indexeras med inkomstindex)
+  - 2,5% → premiepension (PPM, fonderad)
+- **Pensionsunderlag:** inkomst efter 7% allmän pensionsavgift, **tak 7,5 IBB**
+  - 2026: IBB = 83 400 kr → tak = **625 500 kr/år** (52 125 kr/mån)
+- **Behållning → pension:** årspension = pensionsbehållning ÷ **delningstal**
+  - Delningstal ≈ förväntad återstående livslängd vid uttag, justerat för
+    1,6% antagen tillväxt (norm). ~16 vid 65 (varierar med födelseår/uttagsålder).
+- **Följsamhetsindexering:** löpande pension räknas om med inkomstindex − 1,6 (norm)
+- **Lugn-formel (verifierad mot publicerade nivåer):**
+  ```
+  underlag      = min(årslön × 0,93, 625 500)
+  pensionsrätt  = 0,185 × underlag           // per arbetsår
+  behållning    = pensionsrätt × arbetsår    // karriärstart 23 → 65 = 42 år
+  pension/år    = behållning ÷ 16
+  ```
+  Early retirement: färre arbetsår → mindre behållning → lägre pension (naturligt).
+- **Garantipension:** golv för låg pension, trappas av mot inkomstpension (≈0 för
+  FIRE-personer med lång karriär). Lugn använder litet golv (10%).
+
 ### Skatteverket API (Fas 2)
 - Inkomstdeklaration 1 API — https://www.skatteverket.se/omoss/digitalasamarbeten...
 - Hämta kommunalskattesats per kommun för exakt nettoinkomst

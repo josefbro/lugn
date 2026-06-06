@@ -49,15 +49,34 @@ function populateKommunList() {
   });
 }
 
-// ─── Early-retirement → lägre pension ──────────────────────────────────────────
-// Slutar du jobba tidigt → färre år med pensionsavsättningar.
-// Allmän pension (entered = prognos till 65) skalas med arbetade år.
-// Antagande: karriärstart 23, full prognos vid 65.
+// ─── Allmän pension — Pensionsmyndighetens faktiska metod ─────────────────────
+// 18,5% av pensionsunderlaget (inkomst efter 7% avgift, tak 7,5 IBB) sätts av
+// varje arbetsår → pensionsbehållning → ÷ delningstal vid uttag = årspension.
+// Källa: pensionsmyndigheten.se (16% inkomstpension + 2,5% premiepension).
+const IBB_2026          = 83_400;
+const PGI_CEILING_2026  = 625_500;   // 7,5 × IBB på pensionsunderlag
+const ALLMAN_RATE       = 0.185;     // 18,5%
+const DELNINGSTAL_65    = 16.0;      // ~vid 65 (varierar med födelseår/uttagsålder)
+const CAREER_START      = 23;
+
+// Allmän pension/mån vid FULL karriär till 65 (för en given månadslön), dagens värde.
+function allmanAt65Full(monthlySalary) {
+  if (monthlySalary <= 0) return 0;
+  const income = monthlySalary * 12;
+  const underlag = Math.min(income * 0.93, PGI_CEILING_2026);   // efter 7% avgift, takat
+  const pensionsratt = ALLMAN_RATE * underlag;                  // per arbetsår
+  const balance = pensionsratt * (65 - CAREER_START);           // 42 års full karriär
+  return (balance / DELNINGSTAL_65) / 12;                       // kr/mån
+}
+
+// Reduktionsfaktor vid tidig frihet: pension ∝ antal arbetsår (pensionsrätten
+// är konstant per år vid/över taket → linjärt i år). Detta speglar den faktiska
+// mekaniken: färre år → mindre behållning → lägre pension (samma delningstal).
 function allmanFactor(retire) {
   if (retire >= 65) return 1;
-  const careerStart = 23, full = 65 - careerStart;
-  const worked = Math.max(0, retire - careerStart);
-  return Math.max(0.35, worked / full);   // golv ~garantipension-effekt
+  const full = 65 - CAREER_START;
+  const worked = Math.max(0, retire - CAREER_START);
+  return Math.max(0.10, worked / full);   // litet golv (garantipension trappas av)
 }
 
 function tjpPayout(pott, period) {
@@ -595,7 +614,10 @@ function getInputs() {
     tjpPott:        +$("tjpPott").value,
     tjpPeriod:      +$("tjpPeriod").value,
     tjpContrib:     +($("tjpContrib")?.value || 0),
-    allmanMonthly:  +$("allmanMonthly").value,
+    // Lön driver allmän pension (Pensionsmyndighetens metod); annars direkt-värdet
+    allmanMonthly:  (+($("salary")?.value || 0) > 0)
+                      ? allmanAt65Full(+$("salary").value)
+                      : +$("allmanMonthly").value,
     realReturn:     +$("realReturn").value,
     inflation:      +$("inflation").value,
   };
@@ -607,6 +629,21 @@ function recalc() {
   const krEl = document.getElementById("kommunRate");
   if (krEl) krEl.textContent = `${(_kommunalskatt*100).toFixed(2)}% kommunalskatt`;
   const inputs = getInputs();
+
+  // Visa beräknad allmän pension från lön
+  const salary = +($("salary")?.value || 0);
+  const acEl = document.getElementById("allmanComputed");
+  if (acEl) {
+    if (salary > 0) {
+      const full = allmanAt65Full(salary);
+      const eff = full * allmanFactor(inputs.retire);
+      acEl.textContent = inputs.retire < 65
+        ? `≈ ${fmtKr(eff)}/mån allmän pension (reducerad för frihet ${inputs.retire})`
+        : `≈ ${fmtKr(full)}/mån allmän pension`;
+    } else {
+      acEl.textContent = "räknar allmän pension åt dig";
+    }
+  }
 
   const lifestyle = activeTier
     ? TIER_LIFESTYLE[activeTier]
