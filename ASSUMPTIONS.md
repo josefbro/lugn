@@ -41,7 +41,8 @@ Senast granskad: 2026-06-06 (Opus). Två buggar hittade & fixade under denna gra
 |---|---|---|---|
 | 14 | ISK schablonskatt 2026 | 1,065% (SLR 2,55% +1pp ×30%) | 🟢 Korrekt. |
 | 15 | ISK grundavdrag 2026 | 300 000 kr | 🟢 Korrekt (nytt 2026). |
-| 16 | Kommunalskatt | 32% flat | 🟡 Varierar 29–35% per kommun. Användaren vill ha Skatteverket-API för exakt sats. |
+| 16 | Kommunalskatt | **kommun-vald, riktig 2026-sats** | 🟢 FIXAD. Alla 290 kommuner från SCB 2026 (`kommunalskatt.js`). Spann 28,93–35,65%, default snitt 33,2%. |
+| 16b | **Early retirement → lägre pension** | allmän skalas (arbetsår/42), golv 35% | 🟢 NYTT. Slutar du vid R<65 → allmän pension × (R−23)/(65−23). TJP-avsättningar medan du jobbar växer potten. Transparent insight. Golv reflekterar garantipension. Approximation (linjär i år, antar above-cap-inkomst). |
 | 17 | **Skiktgräns-indexering** | nu indexerad med inflation | 🟢 FIXAD under granskning. Tidigare fast nominellt → framtida år korsade felaktigt. Nu räknas allt i dagens penningvärde. |
 | 18 | **Pensionärs-brytpunkt 66+** | 733 200 kr (vs 660 400 arbetande) | 🟢 FIXAD. 66+ har förhöjt grundavdrag → högre brytpunkt. Tidigare felaktig `643k+grundavdrag`-modell. |
 | 19 | Huvudsimens lönesatt (success rate) vs optimerarens brytpunkt | lonTax ~703k effektiv / opt 733,2k | 🔴 Liten inkonsekvens — success-rate-simens pensionsskatt använder annan tröskel än uttagsoptimeraren. Bör enhetligas. |

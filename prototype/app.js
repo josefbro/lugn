@@ -21,11 +21,43 @@ function iskTax(balance, otherKf = 0) {
   return Math.max(0, balance - avdrag) * ISK_EFFEKTIV_SKATT;
 }
 
+let _kommunalskatt = 0.332;   // default = riksgenomsnitt 2026 (33,2%)
+
 function lonTax(income, age) {
   if (income <= 0) return 0;
   const ga = age >= 65 ? 60_000 : 40_000;
   const t = Math.max(0, income - ga);
-  return t * 0.32 + Math.max(0, t - 643_100) * 0.20;
+  return t * _kommunalskatt + Math.max(0, t - 643_100) * 0.20;
+}
+
+// Kommunalskatt: slå upp vald kommun (data i kommunalskatt.js), annars snitt.
+function getKommunalskatt() {
+  const name = (document.getElementById("kommun")?.value || "").trim();
+  const tbl = window.KOMMUNALSKATT_2026 || {};
+  if (name && tbl[name] != null) return tbl[name] / 100;
+  return 0.332;
+}
+
+function populateKommunList() {
+  const dl = document.getElementById("kommunList");
+  const tbl = window.KOMMUNALSKATT_2026;
+  if (!dl || !tbl || dl.children.length) return;
+  Object.keys(tbl).sort((a, b) => a.localeCompare(b, "sv")).forEach(k => {
+    const o = document.createElement("option");
+    o.value = k;
+    dl.appendChild(o);
+  });
+}
+
+// ─── Early-retirement → lägre pension ──────────────────────────────────────────
+// Slutar du jobba tidigt → färre år med pensionsavsättningar.
+// Allmän pension (entered = prognos till 65) skalas med arbetade år.
+// Antagande: karriärstart 23, full prognos vid 65.
+function allmanFactor(retire) {
+  if (retire >= 65) return 1;
+  const careerStart = 23, full = 65 - careerStart;
+  const worked = Math.max(0, retire - careerStart);
+  return Math.max(0.35, worked / full);   // golv ~garantipension-effekt
 }
 
 function tjpPayout(pott, period) {
@@ -65,7 +97,7 @@ let _glidbana = false;   // sätts av toggle i avancerat
 function simulate(inputs, opts = {}) {
   const { age, retire, lifespan, needPerMonth, savingsPerMonth,
           iskBalance, kfBalance, depaBalance,
-          tjpPott, tjpPeriod, allmanMonthly,
+          tjpPott, tjpPeriod, allmanMonthly, tjpContrib = 0,
           realReturn, inflation } = inputs;
 
   const sideRatio    = opts.sideIncomeRatio    ?? 0;
@@ -75,8 +107,16 @@ function simulate(inputs, opts = {}) {
   const inf     = inflation / 100;
   const nomBase = (realReturn + inflation) / 100;
 
+  // Allmän pension skalas ned om man slutar jobba tidigt (färre avsättningsår)
+  const allmanEff = allmanMonthly * allmanFactor(retire);
+
+  // TJP-pott + framtida avsättningar medan man jobbar (växer potten vid sen pension)
   const yearsToTjp = Math.max(0, 65 - age);
-  const tjpAt65    = tjpPott * Math.pow(1.04, yearsToTjp);
+  let tjpContribFV = 0;
+  for (let a2 = age; a2 < retire && a2 < 65; a2++) {
+    tjpContribFV += tjpContrib * 12 * Math.pow(1.04, 65 - a2);
+  }
+  const tjpAt65    = tjpPott * Math.pow(1.04, yearsToTjp) + tjpContribFV;
   const tjpAnnual  = tjpPayout(tjpAt65, tjpPeriod);
 
   let isk = iskBalance, kf = kfBalance, depa = depaBalance;
@@ -94,7 +134,7 @@ function simulate(inputs, opts = {}) {
 
     let pensionGross = 0;
     if (a >= 65) {
-      pensionGross += allmanMonthly * 12 * Math.pow(1 + inf, i);
+      pensionGross += allmanEff * 12 * Math.pow(1 + inf, i);
       if (tjpPeriod < 0 || a < 65 + tjpPeriod)
         pensionGross += tjpAnnual * Math.pow(1 + inf, a - 65);
     }
@@ -554,6 +594,7 @@ function getInputs() {
     depaBalance:    +$("depaBalance").value,
     tjpPott:        +$("tjpPott").value,
     tjpPeriod:      +$("tjpPeriod").value,
+    tjpContrib:     +($("tjpContrib")?.value || 0),
     allmanMonthly:  +$("allmanMonthly").value,
     realReturn:     +$("realReturn").value,
     inflation:      +$("inflation").value,
@@ -562,6 +603,9 @@ function getInputs() {
 
 function recalc() {
   _glidbana = !!document.getElementById("glidbana")?.checked;
+  _kommunalskatt = getKommunalskatt();
+  const krEl = document.getElementById("kommunRate");
+  if (krEl) krEl.textContent = `${(_kommunalskatt*100).toFixed(2)}% kommunalskatt`;
   const inputs = getInputs();
 
   const lifestyle = activeTier
@@ -838,6 +882,20 @@ function generateInsights(inputs, mc, tier, result, earliestByTier) {
       title: "Har du tjänstepension?",
       body: `Inget tjänstepensionskapital är inlagt. De flesta anställda har det — det kan vara en betydande del av din pensionsbrygga.`,
     });
+  }
+
+  // — Early retirement sänker pensionen —
+  if (inputs.retire < 62 && inputs.allmanMonthly > 0) {
+    const f = allmanFactor(inputs.retire);
+    const reduced = Math.round(inputs.allmanMonthly * f);
+    const lost = inputs.allmanMonthly - reduced;
+    if (lost > 500) {
+      insights.push({
+        sev: 2, icon: "↓",
+        title: "Tidig frihet sänker din allmänna pension",
+        body: `Slutar du jobba vid ${inputs.retire} betalar du in pension i färre år. Din allmänna pension blir ca <strong>${fmtKr(reduced)}/mån</strong> istället för ${fmtKr(inputs.allmanMonthly)} (–${Math.round((1-f)*100)}%). Planen räknar redan med detta. Garantipensionen ger ett golv från 66.`,
+      });
+    }
   }
 
   // — Skiktgräns: pension korsar brytpunkten —
@@ -1307,9 +1365,12 @@ function tjpAnnuityReal(pottToday, period) {
 // dagens skiktgräns. Pott antas växa ~2% realt fram till 65.
 function pensionRealAtAge(inputs, age, tjpPeriod) {
   if (age < 65) return 0;
-  let g = inputs.allmanMonthly * 12;   // allmän pension ~konstant realt
+  let g = inputs.allmanMonthly * allmanFactor(inputs.retire) * 12;   // reducerad vid tidig frihet
   const yearsToTjp = Math.max(0, 65 - inputs.age);
-  const pott65Real = inputs.tjpPott * Math.pow(1.02, yearsToTjp);
+  let pott65Real = inputs.tjpPott * Math.pow(1.02, yearsToTjp);
+  for (let a2 = inputs.age; a2 < inputs.retire && a2 < 65; a2++) {
+    pott65Real += (inputs.tjpContrib || 0) * 12 * Math.pow(1.02, 65 - a2);
+  }
   if (tjpPeriod < 0 || age < 65 + tjpPeriod)
     g += tjpAnnuityReal(pott65Real, tjpPeriod);
   return g;
@@ -1598,6 +1659,7 @@ $("advancedToggle")?.addEventListener("click", () => {
   document.getElementById(id)?.addEventListener("input", renderFeeDrag));
 
 window.addEventListener("DOMContentLoaded", () => {
+  populateKommunList();
   setupLifestyleChips();
   setupShockChips();
   applyOnboardingAnswers();

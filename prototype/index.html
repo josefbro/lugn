@@ -308,6 +308,10 @@
 
           <h3>Din pension</h3>
           <label>
+            <span>Din kommun <span class="input-hint" id="kommunRate">för rätt skattesats</span></span>
+            <input list="kommunList" id="kommun" placeholder="t.ex. Nässjö" style="width:150px">
+          </label>
+          <label>
             <span>Tjänstepension <span class="input-hint">samlat värde idag</span></span>
             <input type="number" id="tjpPott" value="0" step="50000">
           </label>
@@ -351,6 +355,10 @@
             <label>
               <span>Inflation %</span>
               <input type="number" id="inflation" value="2" step="0.5">
+            </label>
+            <label>
+              <span>TJP-avsättning / mån <span class="input-hint">medan du jobbar (typ. 4,5–6% av lön)</span></span>
+              <input type="number" id="tjpContrib" value="0" step="500">
             </label>
             <label class="toggle-label">
               <span>AP7-glidbana <span class="input-hint">trappa ner aktier mot pension (livscykel)</span></span>
@@ -638,6 +646,8 @@
   </div>
 </footer>
 
+<datalist id="kommunList"></datalist>
+<script src="kommunalskatt.js"></script>
 <script src="onboarding.js"></script>
 <script src="app.js"></script>
 </body>
