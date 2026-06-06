@@ -382,6 +382,7 @@ function drawCharts(flows, retireAge, mcData) {
   drawBridgeChart(flows, retireAge);
 }
 
+// Full livscykel: sparande → topp vid frihet → uttag/nedtrappning.
 function drawAccumChart(flows, retireAge, mcData) {
   const c = $("accumChart");
   if (!c) return;
@@ -389,44 +390,54 @@ function drawAccumChart(flows, retireAge, mcData) {
   const W = c.width, H = c.height;
   ctx.clearRect(0, 0, W, H);
 
-  const accumFlows = flows.filter(f => f.age <= retireAge);
-  if (accumFlows.length < 2) return;
+  if (flows.length < 2) return;
+  const age0 = flows[0].age;
+  const ageN = flows[flows.length - 1].age;
 
   const padL = 60, padR = 12, padT = 16, padB = 36;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
   const maxCap = mcData
-    ? Math.max(...mcData.filter(d => d.age <= retireAge).map(d => d.p90))
-    : Math.max(...accumFlows.map(f => f.totalCapital));
+    ? Math.max(...mcData.map(d => d.p90), ...flows.map(f => f.totalCapital))
+    : Math.max(...flows.map(f => f.totalCapital));
   if (maxCap === 0) return;
 
-  // Grid
+  const xFor = age => padL + (age - age0) / (ageN - age0) * plotW;
+  const yFor = val => padT + plotH - Math.max(0, Math.min(1, val / maxCap)) * plotH;
+
+  // Grid + Y-labels
   ctx.font = "11px -apple-system, system-ui, sans-serif";
   for (let i = 0; i <= 4; i++) {
     const y = padT + (plotH / 4) * i;
     const v = maxCap * (1 - i / 4);
     ctx.strokeStyle = "#1a1a1a10";
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
-    ctx.fillStyle = "#8a8a8a";
-    ctx.textAlign = "right";
+    ctx.fillStyle = "#8a8a8a"; ctx.textAlign = "right";
     ctx.fillText(fmtKr(v).replace(" kr", ""), padL - 4, y + 4);
   }
 
-  const xFor = age => padL + (age - accumFlows[0].age) / (retireAge - accumFlows[0].age) * plotW;
-  const yFor = val => padT + plotH - Math.min(1, val / maxCap) * plotH;
+  // Markörer: frihet (koral) och pension 65 (grå streckad)
+  const drawMarker = (age, label, color) => {
+    if (age < age0 || age > ageN) return;
+    const x = xFor(age);
+    ctx.strokeStyle = color; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - padB); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color; ctx.textAlign = "center";
+    ctx.font = "10px -apple-system, system-ui, sans-serif";
+    ctx.fillText(label, x, padT + 10);
+  };
 
-  // MC-fan (p10–p90, p25–p75)
+  // MC-fan över HELA livscykeln
   if (mcData) {
-    const mAcc = mcData.filter(d => d.age <= retireAge);
-
     const fillBand = (pLo, pHi, alpha) => {
       ctx.beginPath();
-      mAcc.forEach((d, i) => {
+      mcData.forEach((d, i) => {
         const x = xFor(d.age), y = yFor(d[pLo]);
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
       });
-      [...mAcc].reverse().forEach(d => ctx.lineTo(xFor(d.age), yFor(d[pHi])));
+      [...mcData].reverse().forEach(d => ctx.lineTo(xFor(d.age), yFor(d[pHi])));
       ctx.closePath();
       ctx.fillStyle = `rgba(88,129,87,${alpha})`;
       ctx.fill();
@@ -434,21 +445,17 @@ function drawAccumChart(flows, retireAge, mcData) {
     fillBand("p10", "p90", 0.10);
     fillBand("p25", "p75", 0.16);
 
-    // Median linje
     ctx.beginPath();
-    mAcc.forEach((d, i) => {
+    mcData.forEach((d, i) => {
       const x = xFor(d.age), y = yFor(d.p50);
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = "#3a5a40";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#3a5a40"; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
   }
 
-  // Deterministisk linje (vit/mörk)
+  // Deterministisk linje
   ctx.beginPath();
-  accumFlows.forEach((f, i) => {
+  flows.forEach((f, i) => {
     const x = xFor(f.age), y = yFor(f.totalCapital);
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
@@ -456,24 +463,27 @@ function drawAccumChart(flows, retireAge, mcData) {
   ctx.lineWidth = mcData ? 1 : 2.5;
   ctx.setLineDash(mcData ? [4, 3] : []);
   ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.lineWidth = 1;
+  ctx.setLineDash([]); ctx.lineWidth = 1;
 
-  // X-axis ålder-labels
-  ctx.fillStyle = "#8a8a8a";
-  ctx.textAlign = "center";
-  accumFlows.forEach(f => {
-    if (f.age % 5 === 0) {
-      ctx.fillText(f.age, xFor(f.age), H - padB + 18);
-    }
+  // Markörer
+  drawMarker(retireAge, "frihet", "#c46d4d");
+  drawMarker(65, "pension", "#1a1a1a40");
+
+  // X-axis ålder-labels var 5:e
+  ctx.fillStyle = "#8a8a8a"; ctx.textAlign = "center";
+  ctx.font = "11px -apple-system, system-ui, sans-serif";
+  flows.forEach(f => {
+    if (f.age % 5 === 0) ctx.fillText(f.age, xFor(f.age), H - padB + 18);
   });
 
-  // Label vid slutpunkten
-  const last = accumFlows[accumFlows.length - 1];
-  ctx.fillStyle = "#3a5a40";
-  ctx.textAlign = "right";
-  ctx.font = "bold 12px -apple-system, system-ui, sans-serif";
-  ctx.fillText(fmtKr(last.totalCapital), xFor(last.age), yFor(last.totalCapital) - 6);
+  // Värde vid frihet — median om MC finns (matchar gröna linjen), annars deterministisk
+  const mcAtRetire = mcData?.find(d => d.age === retireAge);
+  const peakVal = mcAtRetire ? mcAtRetire.p50 : flows.find(f => f.age === retireAge)?.totalCapital;
+  if (peakVal != null) {
+    ctx.fillStyle = "#c46d4d"; ctx.textAlign = "center";
+    ctx.font = "bold 11px -apple-system, system-ui, sans-serif";
+    ctx.fillText(fmtKr(peakVal), xFor(retireAge), yFor(peakVal) - 6);
+  }
 }
 
 function drawBridgeChart(flows, retireAge) {
