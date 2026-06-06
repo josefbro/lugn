@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lugn — Hitta livet innan du finansierar det</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="onboarding.css">
+</head>
+<body>
+
+<!-- ═══ ONBOARDING OVERLAY ═══════════════════════════════════════════════ -->
+<div id="obOverlay" class="ob-overlay" style="display:none">
+  <div class="ob-wrap" id="obWrap">
+
+    <div class="ob-progress">
+      <div class="ob-progress-bar" id="obProgress"></div>
+    </div>
+
+    <!-- Steg 1 -->
+    <div class="ob-step active" data-step="1">
+      <div class="ob-logo"><span class="brand-dot"></span> Lugn</div>
+      <h1 class="ob-h1">Hitta livet <em>innan</em> du finansierar det.</h1>
+      <p class="ob-lead">Vi ställer några frågor och bygger din personliga plan — evidensbaserad, svensk-skatteanpassad, ärlig om risker.</p>
+      <blockquote class="ob-quote">
+        "The first step in funding a good life is finding a good life."
+        <cite>— Benjamin Felix, PWL Capital</cite>
+      </blockquote>
+      <p class="ob-question">Vad tar dig hit?</p>
+      <div class="ob-options" data-key="motivation">
+        <button class="ob-opt" data-val="fire">🏖 Jag vill veta när jag kan sluta jobba</button>
+        <button class="ob-opt" data-val="pension">🏦 Jag vill kolla om min pension räcker</button>
+        <button class="ob-opt" data-val="optimize">⚙️ Jag vill optimera ISK / KF / tjänstepension</button>
+        <button class="ob-opt" data-val="curious">🔍 Jag är nyfiken på FIRE och privatekonomi</button>
+      </div>
+    </div>
+
+    <!-- Steg 2 -->
+    <div class="ob-step" data-step="2">
+      <div class="ob-step-label">Steg 2 av 5</div>
+      <h2 class="ob-h2">Om dig</h2>
+      <label class="ob-label">
+        <span>Hur gammal är du?</span>
+        <div class="ob-slider-row">
+          <input type="range" id="obAge" min="22" max="65" value="35">
+          <strong id="obAgeVal">35 år</strong>
+        </div>
+      </label>
+      <p class="ob-question" style="margin-top:28px">Har du sambo eller partner som ingår i planen?</p>
+      <div class="ob-options" data-key="partner">
+        <button class="ob-opt" data-val="no">Nej, bara jag</button>
+        <button class="ob-opt" data-val="yes">Ja, vi planerar ihop</button>
+      </div>
+      <p class="ob-question" style="margin-top:28px">Hur jobbar du?</p>
+      <div class="ob-options" data-key="employment">
+        <button class="ob-opt" data-val="employee">Anställd</button>
+        <button class="ob-opt" data-val="ab">Egenföretagare med AB <span class="ob-badge">K10-modul</span></button>
+        <button class="ob-opt" data-val="mixed">Blandat / konsult</button>
+      </div>
+    </div>
+
+    <!-- Steg 3 -->
+    <div class="ob-step" data-step="3">
+      <div class="ob-step-label">Steg 3 av 5</div>
+      <h2 class="ob-h2">Dina pengar</h2>
+      <p class="ob-sublead">Ungefär räcker. Du kan finjustera allt efteråt.</p>
+      <p class="ob-question">Totalt sparat idag? <span class="ob-hint">(ISK, KF, fonder, depå)</span></p>
+      <div class="ob-chips" data-key="totalSaved">
+        <button class="ob-chip" data-val="250000">Under 500 000</button>
+        <button class="ob-chip" data-val="750000">500k – 1 miljon</button>
+        <button class="ob-chip" data-val="2000000">1 – 3 miljoner</button>
+        <button class="ob-chip" data-val="5000000">3 – 7 miljoner</button>
+        <button class="ob-chip" data-val="8500000">7 miljoner +</button>
+      </div>
+      <p class="ob-question" style="margin-top:28px">Sparar per månad?</p>
+      <div class="ob-chips" data-key="monthlySavings">
+        <button class="ob-chip" data-val="3000">Under 5 000</button>
+        <button class="ob-chip" data-val="7500">5 000 – 10 000</button>
+        <button class="ob-chip" data-val="15000">10 000 – 20 000</button>
+        <button class="ob-chip" data-val="30000">20 000 – 40 000</button>
+        <button class="ob-chip" data-val="50000">40 000 +</button>
+      </div>
+      <p class="ob-question" style="margin-top:28px">Har du tjänstepension?</p>
+      <div class="ob-options" data-key="hasTjp">
+        <button class="ob-opt" data-val="know">Ja, vet ungefär vad det är värt</button>
+        <button class="ob-opt" data-val="has_unknown">Ja, men vet inte hur mycket</button>
+        <button class="ob-opt" data-val="none">Nej / egenföretagare utan TJP</button>
+      </div>
+    </div>
+
+    <!-- Steg 4 -->
+    <div class="ob-step" data-step="4">
+      <div class="ob-step-label">Steg 4 av 5</div>
+      <h2 class="ob-h2">Ditt mål</h2>
+      <label class="ob-label">
+        <span>Vid vilken ålder vill du ha ekonomisk frihet?</span>
+        <div class="ob-slider-row">
+          <input type="range" id="obRetire" min="40" max="70" value="55">
+          <strong id="obRetireVal">55 år</strong>
+        </div>
+      </label>
+      <p class="ob-question" style="margin-top:32px">Vilken livsstil siktar du på?</p>
+      <div class="ob-tier-cards" data-key="targetTier">
+        <button class="ob-tier-card" data-val="barista" data-need="25000">
+          <span class="ob-tier-name">Barista</span>
+          <span class="ob-tier-kr">~25 000 kr/mån</span>
+          <span class="ob-tier-desc">Halvtidsjobb är valt, inte tvingat. Portföljen fyller gapet.</span>
+        </button>
+        <button class="ob-tier-card" data-val="lean" data-need="25000">
+          <span class="ob-tier-name">Lean FIRE</span>
+          <span class="ob-tier-kr">~25 000 kr/mån</span>
+          <span class="ob-tier-desc">Full frihet, enkelt liv. Kräver viss flexibilitet i dåliga börsår.</span>
+        </button>
+        <button class="ob-tier-card" data-val="fire" data-need="35000">
+          <span class="ob-tier-name">FIRE</span>
+          <span class="ob-tier-kr">~35 000 kr/mån</span>
+          <span class="ob-tier-desc">Bekvämt, inga kompromisser. Klassiska 4%-regeln.</span>
+        </button>
+        <button class="ob-tier-card" data-val="fat" data-need="55000">
+          <span class="ob-tier-name">Fat FIRE</span>
+          <span class="ob-tier-kr">~55 000 kr/mån</span>
+          <span class="ob-tier-desc">Generöst, stor säkerhetsmarginal. Klarar nästan alla börskriser.</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Steg 5: Rekommendation (fylls dynamiskt av onboarding.js) -->
+    <div class="ob-step" data-step="5">
+      <div class="ob-step-label">Steg 5 av 6</div>
+      <h2 class="ob-h2">Din nuvarande bana</h2>
+      <div id="obRecommendation" class="ob-rec-wrap">
+        <div class="ob-spinner" style="margin:48px auto"></div>
+      </div>
+    </div>
+
+    <!-- Steg 6 (fd. steg 5): Hitta livet -->
+    <div class="ob-step" data-step="6">
+      <div class="ob-step-label">Steg 6 av 6</div>
+      <h2 class="ob-h2">Hitta livet</h2>
+      <p class="ob-sublead">Det här steget är annorlunda. Det handlar inte om pengar.</p>
+      <blockquote class="ob-quote small">
+        "People omit nearly half of the objectives they later identify as personally relevant — on the first try."
+        <cite>— Bond, Carlson &amp; Keeney (2008)</cite>
+      </blockquote>
+      <label class="ob-label" style="margin-top:24px">
+        <span>Vad vill du ha mer tid till när du är ekonomiskt fri?<br>
+        <small style="color:rgba(255,255,255,.5);font-weight:400">Skriv minst tre saker. Var konkret.</small></span>
+        <textarea id="obGoals" rows="4" placeholder="T.ex. mer tid med barnen, bygga något med händerna, resa utan deadline…"></textarea>
+      </label>
+      <p class="ob-question" style="margin-top:28px">Vilket påstående stämmer bäst in på dig?</p>
+      <div class="ob-options" data-key="disposition">
+        <button class="ob-opt" data-val="approach">
+          "När jag vill ha något ger jag mig hän helt för att nå det."
+          <small>Approach — coachen fokuserar på vad du är på väg mot</small>
+        </button>
+        <button class="ob-opt" data-val="avoidance">
+          "Jag oroar mig för att göra fel och vill undvika misstag."
+          <small>Avoidance — coachen fokuserar på vad planen skyddar dig mot</small>
+        </button>
+        <button class="ob-opt" data-val="mixed">
+          "Lite av varje beroende på situation."
+          <small>Mixed — coachen anpassar sig</small>
+        </button>
+      </div>
+    </div>
+
+    <!-- Steg 7: Computing -->
+    <div class="ob-step" data-step="7">
+      <div class="ob-computing">
+        <div class="ob-spinner"></div>
+        <h2 class="ob-h2" style="margin-top:32px">Bygger din plan…</h2>
+        <div class="ob-computing-steps">
+          <div class="ob-cs" id="cs1">✓ Svenska skatteregler 2026</div>
+          <div class="ob-cs" id="cs2">✓ Pensions-brygga beräknad</div>
+          <div class="ob-cs" id="cs3">✓ Monte Carlo (5 000 banor)</div>
+          <div class="ob-cs" id="cs4">✓ Din plan är klar</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <div class="ob-nav" id="obNav">
+      <button class="ob-back btn btn-ghost" id="obBack" type="button" style="display:none">← Tillbaka</button>
+      <button class="ob-skip" id="obSkip" type="button" onclick="skipOnboarding()">Hoppa över →</button>
+      <div class="ob-nav-right">
+        <span class="ob-step-dots" id="obDots"></span>
+        <button class="btn btn-primary ob-next" id="obNext" type="button" disabled>Nästa →</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<header class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="#top">
+      <span class="brand-dot"></span>
+      Lugn
+    </a>
+    <nav class="nav-links">
+      <a href="#kalkylator">Kalkylatorn</a>
+      <a href="#filosofi">Filosofin</a>
+      <a href="#priser">Priser</a>
+    </nav>
+    <a class="btn btn-ghost" href="#kalkylator">Prova gratis</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="container">
+      <span class="eyebrow">Evidence-based finansplanering för svenskar</span>
+      <h1>Hitta livet <em>innan</em> du finansierar det.</h1>
+      <p class="lead">
+        Lugn är en lugn, akademiskt förankrad finansplanerings-app — inte en mäklare, inte en robot.
+        Vi räknar ut hur stor pensions-brygga du behöver, vilka konton du borde fylla först,
+        och när du faktiskt kan sluta jobba — med svenska skatteregler och 2026 års 300 000 kr ISK-grundavdrag inräknat.
+      </p>
+      <div class="hero-cta">
+        <button class="btn btn-primary" id="heroCta" onclick="showOnboarding()">Kom igång — 5 frågor →</button>
+        <a class="btn btn-text" href="#kalkylator">Hoppa direkt till kalkylatorn</a>
+      </div>
+      <div class="hero-quote">
+        <em>"The first step in funding a good life is finding a good life."</em>
+        <span>— Benjamin Felix, PWL Capital</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-cream">
+    <div class="container">
+      <h2 class="section-h">Vad de andra missar</h2>
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-num">01</div>
+          <h3>Wrapper-medveten skatt</h3>
+          <p>Det nya 300 000 kr-grundavdraget för ISK + KF 2026 ändrar allt. Vi räknar med det. Inga gamla Excel-mallar.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">02</div>
+          <h3>Brygga in i bilden</h3>
+          <p>Tjänstepensionen kommer kanske vid 65. Allmän vid 64. Du vill sluta vid 50. Vi räknar ut bryggan exakt — och vilka konton som ska tömmas i vilken ordning.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">03</div>
+          <h3>Mål först, pengar sen</h3>
+          <p>Bond, Carlson &amp; Keeney visar att folk missar ~50% av sina egna mål på första försöket. Vår onboarding hjälper dig hitta resten.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="kalkylator" class="band">
+    <div class="container">
+      <h2 class="section-h">När kan du sluta jobba?</h2>
+      <p class="section-sub">Fyll i dina siffror — appen räknar ut din plan och chansen att den håller hela vägen.</p>
+
+      <div class="calc">
+        <div class="calc-inputs">
+
+          <!-- Huvud-frågan: åldrarna -->
+          <div class="age-hero">
+            <div class="age-hero-item">
+              <span class="age-hero-label">Jag är</span>
+              <input type="number" id="age" value="35" min="18" max="80" class="age-hero-input">
+              <span class="age-hero-unit">år</span>
+            </div>
+            <div class="age-hero-sep">→</div>
+            <div class="age-hero-item">
+              <span class="age-hero-label">Vill sluta vid</span>
+              <input type="number" id="retire" value="50" min="35" max="75" class="age-hero-input hero-retire">
+              <span class="age-hero-unit">år</span>
+            </div>
+          </div>
+
+          <!-- Livsstil-chips -->
+          <div class="lifestyle-section">
+            <div class="lifestyle-label">Vilken livsstil siktar du på?</div>
+            <div class="lifestyle-chips" id="lifestyleChips">
+              <button class="lchip" data-need="20000" type="button">Minimalt<br><small>20 000 / mån</small></button>
+              <button class="lchip" data-need="25000" type="button">Lean<br><small>25 000 / mån</small></button>
+              <button class="lchip lchip-selected" data-need="35000" type="button">FIRE<br><small>35 000 / mån</small></button>
+              <button class="lchip" data-need="55000" type="button">Fat FIRE<br><small>55 000 / mån</small></button>
+              <button class="lchip lchip-custom" data-need="custom" type="button">Eget<br><small id="customNeedLabel">— / mån</small></button>
+            </div>
+            <div id="customNeedWrap" style="display:none">
+              <label class="custom-need-label">
+                <span>Ditt behov / mån</span>
+                <input type="number" id="customNeedInput" value="35000" step="1000">
+              </label>
+            </div>
+            <!-- Dolt input som synkroniseras med livsstil-chips -->
+            <input type="number" id="needPerMonth" value="35000" style="display:none">
+          </div>
+
+          <h3>Dina pengar</h3>
+          <label>
+            <span>Totalt sparat <span class="input-hint">ISK, fonder, aktier</span></span>
+            <input type="number" id="iskBalance" value="1500000" step="50000">
+          </label>
+          <label>
+            <span>Sparar per månad</span>
+            <input type="number" id="savingsPerMonth" value="20000" step="1000">
+          </label>
+
+          <h3>Din pension</h3>
+          <label>
+            <span>Tjänstepension <span class="input-hint">samlat värde idag</span></span>
+            <input type="number" id="tjpPott" value="0" step="50000">
+          </label>
+          <label>
+            <span>Allmän pension / mån
+              <a class="input-link" href="https://www.minpension.se" target="_blank">Hitta på minpension.se ↗</a>
+            </span>
+            <input type="number" id="allmanMonthly" value="0" step="1000">
+          </label>
+
+          <button class="advanced-toggle" id="advancedToggle" type="button">
+            Fler inställningar <span id="advancedArrow">▾</span>
+          </button>
+          <div class="advanced-section" id="advancedSection">
+            <label>
+              <span>KF (kapitalförsäkring)</span>
+              <input type="number" id="kfBalance" value="0" step="50000">
+            </label>
+            <label>
+              <span>Vanlig depå (AKB)</span>
+              <input type="number" id="depaBalance" value="0" step="50000">
+            </label>
+            <label>
+              <span>TJP utbetalningsperiod</span>
+              <select id="tjpPeriod">
+                <option value="5">5 år</option>
+                <option value="10">10 år</option>
+                <option value="15">15 år</option>
+                <option value="20" selected>20 år</option>
+                <option value="-1">Livsvarig</option>
+              </select>
+            </label>
+            <label>
+              <span>Planerar till ålder</span>
+              <input type="number" id="lifespan" value="90" min="70" max="100">
+            </label>
+            <label>
+              <span>Real avkastning %</span>
+              <input type="number" id="realReturn" value="5" step="0.5">
+            </label>
+            <label>
+              <span>Inflation %</span>
+              <input type="number" id="inflation" value="2" step="0.5">
+            </label>
+          </div>
+        </div>
+
+        <div class="calc-output">
+
+          <!-- PERSON-CENTRERAT SVAR: "Du kan sluta vid X år" -->
+          <div class="answer-hero">
+            <div class="answer-hero-label">Du kan sluta jobba vid</div>
+            <div class="answer-hero-age" id="answerAge">— år</div>
+            <div class="answer-hero-sub" id="answerSub">Beräknar…</div>
+          </div>
+
+          <!-- Snabb vad-händer-om rad -->
+          <div class="what-if-row">
+            <span class="what-if-label">Sparar du</span>
+            <input type="number" id="reverseAge" value="50" min="35" max="70" style="display:none">
+            <span class="what-if-answer" id="reverseSavings">—</span>
+          </div>
+
+          <!-- Plan-summary (varning / OK) -->
+          <div class="plan-summary" id="planSummary">
+            <div class="plan-summary-text" id="planSummaryText">Räknar…</div>
+          </div>
+
+          <div class="result-row">
+            <div class="metric metric-mc">
+              <div class="metric-label">Chansen att det håller</div>
+              <div class="metric-mc-row">
+                <span class="success-badge" id="successRate">—</span>
+                <span class="success-label" id="successLabel">Räknar…</span>
+              </div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Din nivå</div>
+              <div class="metric-value" id="fireTier">—</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Kvar vid <span id="endAge">90</span> år</div>
+              <div class="metric-value" id="endCapital">—</div>
+              <div style="font-size:11px;color:var(--ink-400);margin-top:2px">nominellt</div>
+            </div>
+          </div>
+          <!-- Bridge-info som sekundär förklaring -->
+          <div class="bridge-detail">
+            <span class="bridge-detail-label">Din portfölj täcker perioden</span>
+            <span id="bridgeSub" class="bridge-detail-val">—</span>
+          </div>
+
+          <div class="sr-slider-wrap">
+            <div class="sr-slider-header">
+              <span class="sr-slider-label">Siktar på <strong id="srSliderValue">90%</strong> sannolikhet</span>
+              <span class="sr-building" id="srBuilding" style="display:none">Beräknar… 🔄</span>
+            </div>
+            <input type="range" id="srSlider" min="50" max="97" value="90" step="1" disabled>
+            <div class="sr-slider-footer">
+              <span class="sr-result" id="srSliderResult">Laddar lookup-tabell…</span>
+              <button class="btn btn-ghost sr-apply" id="srApplyBtn" style="display:none" type="button"></button>
+            </div>
+          </div>
+
+          <div class="tiers-label">
+            <span>Klicka en nivå för att simulera den livsstilen</span>
+            <span class="tiers-delta" id="tiersDelta"></span>
+          </div>
+          <div class="tiers">
+            <button class="tier" data-tier="coast" type="button">
+              <span class="tier-name">Coast</span>
+              <span class="tier-age" data-age>—</span>
+              <small>Sluta spara, låt växa</small>
+            </button>
+            <button class="tier" data-tier="barista" type="button">
+              <span class="tier-name">Barista</span>
+              <span class="tier-age" data-age>—</span>
+              <small>Halvtid räcker</small>
+            </button>
+            <button class="tier" data-tier="lean" type="button">
+              <span class="tier-name">Lean</span>
+              <span class="tier-age" data-age>—</span>
+              <small>Minimalist FIRE</small>
+            </button>
+            <button class="tier" data-tier="fire" type="button">
+              <span class="tier-name">FIRE</span>
+              <span class="tier-age" data-age>—</span>
+              <small>4%-regeln</small>
+            </button>
+            <button class="tier" data-tier="fat" type="button">
+              <span class="tier-name">Fat</span>
+              <span class="tier-age" data-age>—</span>
+              <small>3% — bekvämt</small>
+            </button>
+          </div>
+          <div class="tier-note-card">
+            <span class="tier-note-eyebrow">Vad nivån innebär</span>
+            <p id="tierNote">Klicka en nivå ovan för förklaring och simulering.</p>
+          </div>
+
+          <div class="charts-wrap">
+            <div class="chart-panel">
+              <h4>Portföljtillväxt <span class="chart-sub">— ackumuleringsfas</span></h4>
+              <p class="chart-help">Mörkgrön = median (500 banor). Ljusgrön = p25–p75 och p10–p90 fan.</p>
+              <canvas id="accumChart" width="680" height="230"></canvas>
+              <div class="legend">
+                <span class="leg-dot" style="background:#3a5a40"></span> Median
+                <span class="leg-dot" style="background:#3a5a4050; width:16px; border-radius:2px"></span> p25–p75
+                <span class="leg-dot" style="background:#3a5a4020; width:16px; border-radius:2px"></span> p10–p90
+              </div>
+            </div>
+            <div class="chart-panel">
+              <h4>Pensions-brygga <span class="chart-sub">— uttagsfas</span></h4>
+              <p class="chart-help">Grön = pension täcker. Korall = bridge-pott fyller gapet.</p>
+              <canvas id="bridgeChart" width="680" height="230"></canvas>
+              <div class="legend">
+                <span class="leg-dot" style="background:#3a5a40"></span> Pension
+                <span class="leg-dot" style="background:#c46d4d"></span> Bridge-pott
+              </div>
+            </div>
+          </div>
+
+          <!-- ISK vs Aktiedepå -->
+          <div class="isk-af-wrap">
+            <h4 class="isk-af-title">ISK vs aktiedepå — vad lönar sig?</h4>
+            <p class="chart-help">ISK betalar schablon varje år. Aktiedepå betalar 30% skatt vid försäljning. Vilken är bättre för dig?</p>
+
+            <div class="isk-af-inputs">
+              <label class="isk-af-input-label">
+                <span>Befintligt kapital</span>
+                <input type="number" id="iskAfInitial" value="1000000" step="100000">
+              </label>
+              <label class="isk-af-input-label">
+                <span>Månadssparande</span>
+                <input type="number" id="iskAfMonthly" value="10000" step="1000">
+              </label>
+              <label class="isk-af-input-label">
+                <span>Sparhorisont (år)</span>
+                <input type="number" id="iskAfYears" value="20" min="1" max="50">
+              </label>
+              <label class="isk-af-input-label">
+                <span>Avkastning / år (nominell %)</span>
+                <input type="number" id="iskAfReturn" value="7" step="0.5">
+              </label>
+            </div>
+
+            <!-- Tid till FIRE -->
+            <div class="fire-time-wrap" id="iskAfFireTime">
+              <span style="color:var(--ink-400);font-size:13px">Beräknar tid till FIRE…</span>
+            </div>
+
+            <div class="isk-af-result">
+              <div class="isk-af-winner" id="iskAfWinner">—</div>
+              <div class="isk-af-meta" id="iskAfDiff">Beräknar…</div>
+              <div class="isk-af-crossover" id="iskAfCrossover" style="display:none"></div>
+            </div>
+
+            <canvas id="iskAfChart" width="700" height="220"></canvas>
+            <div class="legend" style="margin-top:10px">
+              <span class="leg-dot" style="background:#3a5a40"></span> ISK (netto efter schablon)
+              <span class="leg-dot" style="background:#c46d4d"></span> Aktiedepå (efter 30% reavinstskatt vid försäljning)
+            </div>
+
+            <div class="isk-af-explainer">
+              <strong>Varför ISK oftast vinner över tid:</strong>
+              Schablonen är 1.065% av balansen per år (2026). Aktiedepån betalar 30% på vinsten.
+              ISK vinner när avkastningen överstiger <strong>3.55%</strong> — dvs. nästan alltid vid ett globalt indexfondsparande.
+              Vid <em>låg</em> avkastning eller <em>korta</em> horisonter kan aktiedepån vinna eftersom du inte betalat löpande schablon.
+            </div>
+          </div>
+
+          <div class="microcopy">
+            <p><strong>Tips:</strong> Klicka en FIRE-nivå för att se hur den livsstilen påverkar planen. Monte Carlo kör 5 000 slumpmässiga börsbanor — sannolikheten att pengarna räcker hela vägen.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="filosofi" class="band band-dark">
+    <div class="container">
+      <h2 class="section-h light">Vår filosofi i fyra meningar</h2>
+      <div class="grid-2">
+        <div class="philosophy">
+          <h3>Mål först, portfölj sen.</h3>
+          <p>Investeringsstrategin tjänar livet — inte tvärtom. Vår onboarding är 10 minuter Felix-stil reflektion innan vi pratar siffror.</p>
+        </div>
+        <div class="philosophy">
+          <h3>Akademiskt förankrat.</h3>
+          <p>Fama, French, Felix, Bogle. Faktor-investering med UCITS-instrument som faktiskt finns på Avanza/Nordnet. Ingen stock-picking, inga hot tips.</p>
+        </div>
+        <div class="philosophy">
+          <h3>Sorteringsverktyg, inte rådgivare.</h3>
+          <p>Vi visar scenarier och låter dig välja. Det är inte rådgivning enligt MiFID II — det är beslutsstöd. Du fattar alla beslut själv.</p>
+        </div>
+        <div class="philosophy">
+          <h3>Lugn, inte stress.</h3>
+          <p>När börsen faller 20% pingar inte Lugn dig med panik-notiser. Vi citerar Fama, visar hur din plan håller, och påminner om vad du själv sa du ville bygga.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="priser" class="band band-cream">
+    <div class="container">
+      <h2 class="section-h">Beta — gratis i 6 månader</h2>
+      <p class="section-sub">Vi söker 50 alfa-användare som vill forma produkten. Allt gratis till våren. Sen 99 kr/mån eller 990 kr/år. AB-ägar-modul (K10 + direktpension) 199/1990.</p>
+      <a class="btn btn-primary big" href="#kalkylator">Bli alfa-användare →</a>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <small>
+      Lugn är ett scenario-baserat planeringsverktyg och utgör inte investeringsrådgivning enligt MiFID II.
+      Alla beräkningar är modeller baserade på dina inputs och historiska data.
+      Du fattar alla investeringsbeslut själv.
+    </small>
+  </div>
+</footer>
+
+<script src="onboarding.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
