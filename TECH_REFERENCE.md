@@ -108,6 +108,24 @@ Matas till bygg-agenter för att eliminera hallucination. Verifiera siffror årl
 - **Garantipension:** golv för låg pension, trappas av mot inkomstpension (≈0 för
   FIRE-personer med lång karriär). Lugn använder litet golv (10%).
 
+### Tjänstepensionsavtal — avsättnings-% och tidigast uttag
+- **Brytpunkt:** 7,5 IBB = 625 500 kr/år = **52 125 kr/mån** (2026)
+- **Avsättning:** låg andel på lön ≤7,5 IBB, hög andel på lönedelar däröver
+
+| Avtal | Vem | ≤7,5 IBB | >7,5 IBB | Tidigast uttag |
+|---|---|---|---|---|
+| **ITP1** | Privata tjänstemän (1979+) | 4,5% | 30% | 55 |
+| **ITP2** | Privata tjänstemän (före 1979) | förmånsbest. + ITPK | — | 55/65 |
+| **SAF-LO** | Privata arbetare (LO) | 4,5% | 30% | 55 |
+| **AKAP-KR** | Kommun/region | 6% | 31,5% | 55 |
+| **KAP-KL** | Kommun/region (äldre) | 4,5% | 30% | 55 |
+| **PA16** | Statligt anställda | 6,1% | 31,6% | 55 |
+
+- **Tidigast uttag 55** för premiebestämda delar (planeras höjas mot riktålder).
+- **Lugn:** användaren väljer avtal → avsättning räknas från lön → växer potten
+  medan man jobbar. Verifierat: ITP1 @70k = 7 708 kr/mån, AKAP-KR @70k = 8 758.
+- Källor: SKR, Pensionsmyndigheten (PA16), Collectum (ITP), Fora (SAF-LO).
+
 ### Skatteverket API (Fas 2)
 - Inkomstdeklaration 1 API — https://www.skatteverket.se/omoss/digitalasamarbeten...
 - Hämta kommunalskattesats per kommun för exakt nettoinkomst

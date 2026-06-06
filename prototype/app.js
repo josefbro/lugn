@@ -84,6 +84,32 @@ function tjpPayout(pott, period) {
   return pott * r / (1 - Math.pow(1 + r, -n));
 }
 
+// ─── Tjänstepensionsavtal — avsättnings-% och tidigast uttag ──────────────────
+// Avsättning: andel av lön ≤7,5 IBB, högre andel på lönedelar >7,5 IBB.
+// 7,5 IBB / 12 = 52 125 kr/mån (2026). Tidigast uttag 55 (planeras höjas).
+const TJP_THRESHOLD_MONTH = 7.5 * 83_400 / 12;   // 52 125 kr/mån 2026
+
+const AVTAL = {
+  itp1:   { namn: "ITP1 — privat tjänsteman (1979+)", low: 0.045, high: 0.30,  earliest: 55 },
+  itp2:   { namn: "ITP2 — privat tjänsteman (före 1979)", low: 0.045, high: 0.30, earliest: 55,
+            note: "Förmånsbestämd grunddel (ofta från 65) + premiebestämd ITPK." },
+  saflo:  { namn: "SAF-LO — privat arbetare (LO)", low: 0.045, high: 0.30, earliest: 55 },
+  akapkr: { namn: "AKAP-KR — kommun/region", low: 0.06, high: 0.315, earliest: 55 },
+  kapkl:  { namn: "KAP-KL — kommun/region (äldre)", low: 0.045, high: 0.30, earliest: 55 },
+  pa16:   { namn: "PA16 — statligt anställd", low: 0.061, high: 0.316, earliest: 55 },
+  egen:   { namn: "Eget AB / direktpension", low: 0, high: 0, earliest: 55, custom: true },
+  ingen:  { namn: "Vet ej / ingen", low: 0, high: 0, earliest: 55, custom: true },
+};
+
+// Månatlig TJP-avsättning från lön enligt valt avtal.
+function tjpContribFromAvtal(avtalKey, monthlySalary) {
+  const a = AVTAL[avtalKey];
+  if (!a || a.custom || monthlySalary <= 0) return null;   // null = använd manuellt fält
+  const low  = Math.min(monthlySalary, TJP_THRESHOLD_MONTH) * a.low;
+  const high = Math.max(0, monthlySalary - TJP_THRESHOLD_MONTH) * a.high;
+  return Math.round(low + high);
+}
+
 // ─── AP7 Såfa-glidbana (livscykel-de-risking) ─────────────────────────────────
 // AP7-default: 100% aktier till 55, linjär infasning räntor till 33/67 vid 75.
 // Antaganden: aktier real 5%/σ17%, räntor real 1%/σ5%, korr ≈ 0.
@@ -613,7 +639,9 @@ function getInputs() {
     depaBalance:    +$("depaBalance").value,
     tjpPott:        +$("tjpPott").value,
     tjpPeriod:      +$("tjpPeriod").value,
-    tjpContrib:     +($("tjpContrib")?.value || 0),
+    // TJP-avsättning: från avtal+lön om möjligt, annars manuellt fält
+    tjpContrib:     (tjpContribFromAvtal($("avtal")?.value || "ingen", +($("salary")?.value || 0)) ?? +($("tjpContrib")?.value || 0)),
+    avtal:          $("avtal")?.value || "ingen",
     // Lön driver allmän pension (Pensionsmyndighetens metod); annars direkt-värdet
     allmanMonthly:  (+($("salary")?.value || 0) > 0)
                       ? allmanAt65Full(+$("salary").value)
@@ -629,6 +657,22 @@ function recalc() {
   const krEl = document.getElementById("kommunRate");
   if (krEl) krEl.textContent = `${(_kommunalskatt*100).toFixed(2)}% kommunalskatt`;
   const inputs = getInputs();
+
+  // Visa avtals-info: avsättning + tidigast uttag
+  const avtalEl = document.getElementById("avtalInfo");
+  const avtalKey = $("avtal")?.value || "ingen";
+  const salForAvtal = +($("salary")?.value || 0);
+  if (avtalEl) {
+    const a = AVTAL[avtalKey];
+    const contrib = tjpContribFromAvtal(avtalKey, salForAvtal);
+    if (contrib != null) {
+      avtalEl.textContent = `${fmtKr(contrib)}/mån avsätts · tidigast uttag ${a.earliest} år`;
+    } else if (a && !a.custom) {
+      avtalEl.textContent = `${(a.low*100).toFixed(1)}% / ${(a.high*100).toFixed(1)}% av lön · ange lön nedan`;
+    } else {
+      avtalEl.textContent = "avsättning + tidigast uttag";
+    }
+  }
 
   // Visa beräknad allmän pension från lön
   const salary = +($("salary")?.value || 0);
@@ -948,12 +992,13 @@ function generateInsights(inputs, mc, tier, result, earliestByTier) {
     }
   }
 
-  // — Frihet före 55 (TJP-spärr) —
-  if (inputs.retire < 55) {
+  // — Frihet före tidigast uttag (avtals-specifikt) —
+  const avtalDef = AVTAL[inputs.avtal] || AVTAL.ingen;
+  if (inputs.retire < avtalDef.earliest) {
     insights.push({
       sev: 2, icon: "⚑",
-      title: "Du planerar frihet före 55",
-      body: `Tjänstepension och privat pensionsförsäkring kan tidigast tas ut vid 55. Hela perioden ${inputs.retire}–55 måste täckas av ISK/depå.`,
+      title: `Du planerar frihet före ${avtalDef.earliest}`,
+      body: `${inputs.avtal !== "ingen" && inputs.avtal !== "egen" ? avtalDef.namn.split(" — ")[0] + ": t" : "T"}jänstepension kan tidigast tas ut vid ${avtalDef.earliest} år. Hela perioden ${inputs.retire}–${avtalDef.earliest} måste täckas av ISK/depå.${avtalDef.note ? " " + avtalDef.note : ""}`,
     });
   }
 
