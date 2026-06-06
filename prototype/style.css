@@ -1033,6 +1033,49 @@ canvas {
   line-height: 1.55;
 }
 
+/* === UTTAGSOPTIMERING === */
+.wo-wrap {
+  background: var(--cream-100);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+.wo-title {
+  font-family: var(--serif);
+  font-size: 18px; font-weight: 600; margin: 0 0 4px;
+}
+.wo-ok {
+  background: rgba(58,90,64,.1);
+  color: var(--sage-700);
+  font-weight: 600; font-size: 15px;
+  padding: 12px 16px; border-radius: var(--radius-sm);
+  margin-top: 12px;
+}
+.wo-empty, .wo-note { font-size: 13px; color: var(--ink-400); margin: 12px 0 0; }
+.wo-finding { margin-top: 14px; }
+.wo-cross {
+  display: inline-block; font-weight: 600; font-size: 15px;
+  color: var(--coral-600); margin-bottom: 6px;
+}
+.wo-finding p { font-size: 14px; color: var(--ink-600); margin: 0; line-height: 1.5; }
+.wo-compare {
+  display: flex; align-items: center; gap: 16px;
+  margin: 16px 0 4px; flex-wrap: wrap;
+}
+.wo-opt-card {
+  background: var(--sage-900); color: var(--cream-50);
+  border-radius: var(--radius-sm); padding: 14px 18px;
+  flex: 1; min-width: 200px;
+}
+.wo-opt-label { font-size: 13px; opacity: .8; }
+.wo-opt-save {
+  font-family: var(--serif); font-size: 26px; font-weight: 700;
+  color: #9ed9b4; line-height: 1.1;
+}
+.wo-opt-sub { font-size: 12px; opacity: .7; }
+.wo-apply { white-space: nowrap; }
+
 /* === BEHAVIORAL SHOCK === */
 .shock-wrap {
   background: var(--cream-100);

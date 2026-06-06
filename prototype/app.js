@@ -181,9 +181,12 @@ function runMonteCarlo(inputs, opts = {}) {
   for (let p = 0; p < MC_PATHS; p++) {
     // Sampla en avkastnings-bana med fat-tailed (Student-t) avkastning.
     // Vid glidbana varierar förväntad avkastning och vol med åldern.
+    // MC respekterar användarens avkastnings-input (inputs.realReturn) när
+    // glidbana är av — annars åldersberoende glidbane-avkastning.
+    const baseMu = inputs.realReturn / 100;
     const ret = Array.from({ length: years }, (_, i) => {
       const age = inputs.age + i;
-      const mu  = _glidbana ? expectedRealReturnAtAge(age, inputs) : MC_MU_REAL;
+      const mu  = _glidbana ? expectedRealReturnAtAge(age, inputs) : baseMu;
       const sig = volAtAge(age);
       return mu + randStudentT() * sig;
     });
@@ -654,6 +657,7 @@ function recalc() {
   syncIskAfDefaults();
   renderShock(inputs);
   renderFeeDrag();
+  renderWithdrawalOpt(inputs);
 
   // Synka reverseAge med retire om användaren inte rört den
   const raInput = $("reverseAge");
@@ -834,6 +838,19 @@ function generateInsights(inputs, mc, tier, result, earliestByTier) {
       title: "Har du tjänstepension?",
       body: `Inget tjänstepensionskapital är inlagt. De flesta anställda har det — det kan vara en betydande del av din pensionsbrygga.`,
     });
+  }
+
+  // — Skiktgräns: pension korsar brytpunkten —
+  if (inputs.tjpPott > 0) {
+    const o = optimizeTjpPeriod(inputs);
+    if (o.crossesBrytpunkt && o.saving > 2000) {
+      const pl = o.bestPeriod < 0 ? "livsvarig" : `${o.bestPeriod} år`;
+      insights.push({
+        sev: 2, icon: "⚖",
+        title: "Din pension beskattas statligt i onödan",
+        body: `Tjänstepensionen korsar brytpunkten och utlöser 20% statlig skatt. Sprid uttaget över ${pl} så slipper du det — ca ${fmtKr(o.saving)} sparat. Se uttagsoptimeringen nedan.`,
+      });
+    }
   }
 
   // — Frihet före 55 (TJP-spärr) —
@@ -1269,6 +1286,107 @@ function renderFeeDrag() {
     </div>
     <p class="fee-note">Avgiften ser liten ut per år, men ränta-på-ränta gör den enorm över tid. Detta är en av de få saker du säkert kan kontrollera.</p>
   `;
+}
+
+// ─── Uttagsoptimering (skiktgräns-medveten drawdown) ─────────────────────────
+// Tjänstepension + allmän pension = förvärvsinkomst → räknas mot skiktgränsen.
+// ISK/KF-uttag = kapital → räknas INTE. Optimera TJP-period så årlig pension
+// håller sig under brytpunkten (660 400 kr 2026) och undvik 20% statlig.
+// Brytpunkt = gross-inkomst där 20% statlig börjar. Pensionärer 66+ har
+// förhöjt grundavdrag → högre brytpunkt än arbetande. (Verifiera årligen.)
+const BRYTPUNKT_ARBETANDE  = 660_400;   // < 66 år
+const BRYTPUNKT_PENSIONAR  = 733_200;   // 66+ (förhöjt grundavdrag)
+
+// Real annuitet (dagens penningvärde) — 1% real avkastning under utbetalning.
+function tjpAnnuityReal(pottToday, period) {
+  const r = 0.01, n = period > 0 ? period : 25;
+  return pottToday * r / (1 - Math.pow(1 + r, -n));
+}
+
+// Pension i DAGENS penningvärde vid en ålder. Allt realt → jämförbart med
+// dagens skiktgräns. Pott antas växa ~2% realt fram till 65.
+function pensionRealAtAge(inputs, age, tjpPeriod) {
+  if (age < 65) return 0;
+  let g = inputs.allmanMonthly * 12;   // allmän pension ~konstant realt
+  const yearsToTjp = Math.max(0, 65 - inputs.age);
+  const pott65Real = inputs.tjpPott * Math.pow(1.02, yearsToTjp);
+  if (tjpPeriod < 0 || age < 65 + tjpPeriod)
+    g += tjpAnnuityReal(pott65Real, tjpPeriod);
+  return g;
+}
+
+// Statlig (20%) skatt på real pensionsinkomst mot brytpunkten.
+function stateTaxOnly(grossReal, age) {
+  const bp = age >= 66 ? BRYTPUNKT_PENSIONAR : BRYTPUNKT_ARBETANDE;
+  return Math.max(0, grossReal - bp) * 0.20;
+}
+
+// Total statlig skatt (dagens värde) över livet för en given TJP-period.
+function lifetimeStateTax(inputs, tjpPeriod) {
+  let total = 0;
+  for (let age = 65; age <= inputs.lifespan; age++) {
+    total += stateTaxOnly(pensionRealAtAge(inputs, age, tjpPeriod), age);
+  }
+  return total;
+}
+
+// Hitta TJP-period som minimerar statlig skatt. Returnerar jämförelse.
+function optimizeTjpPeriod(inputs) {
+  const periods = [5, 10, 15, 20, -1];   // -1 = livsvarig
+  const current = inputs.tjpPeriod;
+  const results = periods.map(p => ({ period: p, tax: lifetimeStateTax(inputs, p) }));
+  const best = results.reduce((a, b) => b.tax < a.tax ? b : a);
+  const currentTax = lifetimeStateTax(inputs, current);
+  return {
+    current, currentTax,
+    bestPeriod: best.period, bestTax: best.tax,
+    saving: Math.max(0, currentTax - best.tax),
+    results,
+    crossesBrytpunkt: currentTax > 100,
+  };
+}
+
+function renderWithdrawalOpt(inputs) {
+  const el = document.getElementById("withdrawalOpt");
+  if (!el) return;
+  if (inputs.tjpPott === 0) {
+    el.innerHTML = `<p class="wo-empty">Lägg in din tjänstepension ovan för att se hur uttaget kan optimeras mot skiktgränsen.</p>`;
+    return;
+  }
+  const o = optimizeTjpPeriod(inputs);
+  const periodLabel = p => p < 0 ? "livsvarig" : `${p} år`;
+
+  // Pension vid 66 i DAGENS penningvärde (jämförbart med dagens brytpunkt)
+  const gAt66 = pensionRealAtAge(inputs, 66, o.current);
+  const crosses = gAt66 > BRYTPUNKT_PENSIONAR;
+
+  if (!o.crossesBrytpunkt && o.saving < 500) {
+    el.innerHTML = `
+      <div class="wo-ok">✓ Din pension håller sig under brytpunkten — ingen statlig inkomstskatt på pensionen.</div>
+      <p class="wo-note">Din samlade pension (${periodLabel(o.current)}) ger ${fmtKr(gAt66)}/år vid 66 i dagens värde. Brytpunkten för pensionärer går vid ${fmtKr(BRYTPUNKT_PENSIONAR)}.</p>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="wo-finding">
+      <span class="wo-cross">⚑ Din pension korsar brytpunkten</span>
+      <p>Med ${periodLabel(o.current)}s utbetalning blir din samlade pension ${fmtKr(gAt66)}/år vid 66 (dagens värde) — över pensionärs-brytpunkten ${fmtKr(BRYTPUNKT_PENSIONAR)}. Det utlöser 20% statlig skatt på överskottet.</p>
+    </div>
+    <div class="wo-compare">
+      <div class="wo-opt-card">
+        <div class="wo-opt-label">Sprid över ${periodLabel(o.bestPeriod)}</div>
+        <div class="wo-opt-save">spara ${fmtKr(o.saving)}</div>
+        <div class="wo-opt-sub">i statlig skatt över livet (dagens värde)</div>
+      </div>
+      <button class="btn btn-ghost wo-apply" id="woApply" type="button">Använd ${periodLabel(o.bestPeriod)} →</button>
+    </div>
+    <p class="wo-note">Lägre årligt pensionsuttag → resten täcks av ISK/depå, som är kapital och inte räknas mot skiktgränsen.</p>`;
+
+  const btn = document.getElementById("woApply");
+  if (btn) btn.onclick = () => {
+    const sel = $("tjpPeriod");
+    if (sel) { sel.value = String(o.bestPeriod); recalc(); }
+  };
 }
 
 // ─── SR lookup-tabell ─────────────────────────────────────────────────────────
