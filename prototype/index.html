@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=7">
-<link rel="stylesheet" href="onboarding.css?v=7">
+<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="onboarding.css?v=9">
 </head>
 <body>
 
@@ -516,10 +516,12 @@
             </div>
             <div class="chart-panel">
               <h4>Pensions-brygga <span class="chart-sub">— uttagsfas</span></h4>
-              <p class="chart-help">Grön = pension täcker. Korall = bridge-pott fyller gapet.</p>
+              <p class="chart-help">Varje inkomstkälla tas ut så tidigt den får: TJP från 55, allmän från 63. Bridge-pott (ISK/depå) fyller gapet upp till ditt behov.</p>
               <canvas id="bridgeChart" width="680" height="230"></canvas>
               <div class="legend">
-                <span class="leg-dot" style="background:#3a5a40"></span> Pension
+                <span class="leg-dot" style="background:#3a5a40"></span> Inkomstpension
+                <span class="leg-dot" style="background:#588157"></span> Premiepension
+                <span class="leg-dot" style="background:#a3b18a"></span> Tjänstepension
                 <span class="leg-dot" style="background:#c46d4d"></span> Bridge-pott
               </div>
             </div>
@@ -665,8 +667,8 @@
 </footer>
 
 <datalist id="kommunList"></datalist>
-<script src="kommunalskatt.js?v=7"></script>
-<script src="onboarding.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="kommunalskatt.js?v=9"></script>
+<script src="onboarding.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

@@ -137,12 +137,24 @@ function volAtAge(age) {
 
 let _glidbana = false;   // sätts av toggle i avancerat
 
+// Allmän pension: inkomstpension (16%) + premiepension (2,5%) av 18,5%.
+const PREMIE_SHARE   = 2.5 / 18.5;   // ≈ 13,5% av allmän pension
+const INKOMST_SHARE  = 16  / 18.5;   // ≈ 86,5%
+const ALLMAN_EARLIEST = 63;          // lägsta uttagsålder allmän pension (2026)
+
+// Tidigt uttag av allmän pension före 65 ger livsvarigt lägre belopp
+// (~7% per år tidigare — högre delningstal).
+function earlyAllmanFactor(startAge) {
+  if (startAge >= 65) return 1;
+  return Math.max(0.6, 1 - (65 - startAge) * 0.07);
+}
+
 // ─── Deterministisk simulering ───────────────────────────────────────────────
 // returnOverride: array[year] av faktisk real avkastning (för Monte Carlo)
 function simulate(inputs, opts = {}) {
   const { age, retire, lifespan, needPerMonth, savingsPerMonth,
           iskBalance, kfBalance, depaBalance,
-          tjpPott, tjpPeriod, allmanMonthly, tjpContrib = 0,
+          tjpPott, tjpPeriod, allmanMonthly, tjpContrib = 0, avtal = "ingen",
           realReturn, inflation } = inputs;
 
   const sideRatio    = opts.sideIncomeRatio    ?? 0;
@@ -152,18 +164,25 @@ function simulate(inputs, opts = {}) {
   const inf     = inflation / 100;
   const nomBase = (realReturn + inflation) / 100;
 
-  // allmanMonthly-fältet är redan den effektiva pensionen vid vald frihetsålder
-  // (för-ifylls reducerat från lön + allmanFactor i recalc).
-  const allmanEff = allmanMonthly;
+  // ── Uttagsstrategi: ta varje pension så tidigt dess regler tillåter ──
+  // TJP: tidigast enligt avtal (default 55). Allmän (inkomst+premie): från 63.
+  const avtalEarliest = (AVTAL[avtal]?.earliest) ?? 55;
+  const tjpStart    = Math.max(retire, avtalEarliest);
+  const allmanStart = Math.max(retire, ALLMAN_EARLIEST);
 
-  // TJP-pott + framtida avsättningar medan man jobbar (växer potten vid sen pension)
-  const yearsToTjp = Math.max(0, 65 - age);
+  // TJP-potten växer till FAKTISK startålder (tidigare uttag = mindre pott).
+  const yearsToTjpStart = Math.max(0, tjpStart - age);
   let tjpContribFV = 0;
-  for (let a2 = age; a2 < retire && a2 < 65; a2++) {
-    tjpContribFV += tjpContrib * 12 * Math.pow(1.04, 65 - a2);
+  for (let a2 = age; a2 < retire && a2 < tjpStart; a2++) {
+    tjpContribFV += tjpContrib * 12 * Math.pow(1.04, tjpStart - a2);
   }
-  const tjpAt65    = tjpPott * Math.pow(1.04, yearsToTjp) + tjpContribFV;
-  const tjpAnnual  = tjpPayout(tjpAt65, tjpPeriod);
+  const tjpPottStart = tjpPott * Math.pow(1.04, yearsToTjpStart) + tjpContribFV;
+  const tjpAnnual    = tjpPayout(tjpPottStart, tjpPeriod);
+
+  // Allmän pension (fältet = vid frihetsålder). Tidigt uttag före 65 sänker den.
+  const allmanAdj = allmanMonthly * earlyAllmanFactor(allmanStart);
+  const premieMonthly  = allmanAdj * PREMIE_SHARE;
+  const inkomstMonthly = allmanAdj * INKOMST_SHARE;
 
   let isk = iskBalance, kf = kfBalance, depa = depaBalance;
   const flows = [];
@@ -178,12 +197,16 @@ function simulate(inputs, opts = {}) {
     const needAnnual = needPerMonth * 12 * Math.pow(1 + inf, i);
     const inAccum    = a < retire;
 
-    let pensionGross = 0;
-    if (a >= 65) {
-      pensionGross += allmanEff * 12 * Math.pow(1 + inf, i);
-      if (tjpPeriod < 0 || a < 65 + tjpPeriod)
-        pensionGross += tjpAnnual * Math.pow(1 + inf, a - 65);
+    // Pension i tre delar med egna startåldrar (nominellt vid ålder a)
+    const inflAdj = Math.pow(1 + inf, i);
+    let tjpInc = 0, premieInc = 0, inkomstInc = 0;
+    if (a >= tjpStart && (tjpPeriod < 0 || a < tjpStart + tjpPeriod))
+      tjpInc = tjpAnnual * Math.pow(1 + inf, a - tjpStart);
+    if (a >= allmanStart) {
+      premieInc  = premieMonthly  * 12 * inflAdj;
+      inkomstInc = inkomstMonthly * 12 * inflAdj;
     }
+    const pensionGross = tjpInc + premieInc + inkomstInc;
 
     let bridgeDraw = 0, tax = 0;
 
@@ -211,6 +234,7 @@ function simulate(inputs, opts = {}) {
       age: a,
       need: inAccum ? 0 : needAnnual,
       pensionGross,
+      tjpInc, premieInc, inkomstInc,
       bridgeDraw,
       tax,
       totalCapital: isk + kf + depa,
@@ -516,19 +540,23 @@ function drawBridgeChart(flows, retireAge) {
     ctx.fillText(fmtKr(v).replace(" kr", ""), padL - 4, y + 4);
   }
 
+  // Stackade lager underifrån: inkomstpension → premiepension → TJP → bridge-pott
   retYears.forEach((f, i) => {
     const x = padL + i * barW;
     const w = Math.max(1, barW - 1);
+    let yBase = padT + plotH;   // botten
 
-    const pensH = (Math.min(f.pensionGross, f.need) / maxNeed) * plotH;
-    ctx.fillStyle = "#3a5a40";
-    ctx.fillRect(x, padT + plotH - pensH, w, pensH);
-
-    if (f.bridgeDraw > 0) {
-      const bH = (f.bridgeDraw / maxNeed) * plotH;
-      ctx.fillStyle = "#c46d4d";
-      ctx.fillRect(x, padT + plotH - pensH - bH, w, bH);
-    }
+    const stack = (amount, color) => {
+      if (amount <= 0) return;
+      const h = (amount / maxNeed) * plotH;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, yBase - h, w, h);
+      yBase -= h;
+    };
+    stack(f.inkomstInc, "#3a5a40");   // inkomstpension — mörkgrön
+    stack(f.premieInc,  "#588157");   // premiepension — mellangrön
+    stack(f.tjpInc,     "#a3b18a");   // tjänstepension — ljusgrön
+    stack(f.bridgeDraw, "#c46d4d");   // bridge-pott (ISK/depå) — koral
 
     // Streck för behov
     const ny = padT + plotH - (f.need / maxNeed) * plotH;
@@ -544,19 +572,23 @@ function drawBridgeChart(flows, retireAge) {
       ctx.fillText(f.age, padL + i * barW + barW / 2, H - padB + 18);
   });
 
-  // Markera 65 år (pension)
-  const idx65 = retYears.findIndex(f => f.age === 65);
-  if (idx65 >= 0) {
-    const x = padL + idx65 * barW;
-    ctx.strokeStyle = "#1a1a1a35";
-    ctx.setLineDash([3, 3]);
+  // Markörer där TJP resp. allmän pension börjar
+  const mark = (age, label) => {
+    const idx = retYears.findIndex(f => f.age === age);
+    if (idx < 0) return;
+    const x = padL + idx * barW;
+    ctx.strokeStyle = "#1a1a1a30"; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - padB); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = "#4a4a4a";
-    ctx.font = "11px -apple-system, system-ui, sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText("65 — pension", x + 4, padT + 12);
-  }
+    ctx.fillStyle = "#4a4a4a"; ctx.textAlign = "left";
+    ctx.font = "10px -apple-system, system-ui, sans-serif";
+    ctx.fillText(label, x + 3, padT + 10);
+  };
+  // Hitta första året med TJP resp. allmän
+  const tjpStartAge = retYears.find(f => f.tjpInc > 0)?.age;
+  const allmanStartAge = retYears.find(f => f.inkomstInc > 0)?.age;
+  if (tjpStartAge) mark(tjpStartAge, `${tjpStartAge} TJP`);
+  if (allmanStartAge && allmanStartAge !== tjpStartAge) mark(allmanStartAge, `${allmanStartAge} allmän`);
 }
 
 // ─── Plan summary ────────────────────────────────────────────────────────────
@@ -737,7 +769,7 @@ function recalc() {
   const answerSub = $("answerSub");
   if (isOnTrackForGoal) {
     if (answerAge) { answerAge.textContent = `${inputs.retire} år`; answerAge.style.color = ""; }
-    if (answerSub) answerSub.innerHTML = `<span style="color:#7ec8a0">✓ Du är på spår</span> — portföljen täcker ${inputs.retire < 65 ? `${inputs.retire}–65 år, sedan pension` : "pensionen direkt"}`;
+    if (answerSub) answerSub.innerHTML = `<span style="color:#7ec8a0">✓ Du är på spår</span> — portföljen bär tills pensionerna fasas in`;
   } else {
     // Inte på spår — visa VERKLIGT möjlig ålder, inte målet
     const realistiskAlder = earliestTarget ?? (earliestAgeForTier(inputs, "lean") ?? (earliestAgeForTier(inputs, "barista") ?? "?"));
@@ -745,11 +777,15 @@ function recalc() {
     if (answerSub) answerSub.innerHTML = `Med nuvarande sparande — du siktar på ${inputs.retire} år, se nedan hur`;
   }
 
-  // Bridge-detalj
-  if ($("bridgeSub")) $("bridgeSub").textContent =
-    inputs.retire < 65
-      ? `${inputs.retire}→65 år (${65 - inputs.retire} år utan pension), sedan TJP + allmän`
-      : `Pension tillgänglig från ${inputs.retire} år`;
+  // Bridge-detalj — pensionerna fasas in: TJP först (avtal), sen allmän (63)
+  if ($("bridgeSub")) {
+    const avtalE = (AVTAL[inputs.avtal]?.earliest) ?? 55;
+    const tjpS = Math.max(inputs.retire, avtalE);
+    const allmS = Math.max(inputs.retire, ALLMAN_EARLIEST);
+    $("bridgeSub").textContent = inputs.retire < allmS
+      ? `Portföljen ensam ${inputs.retire}–${tjpS}, sen TJP, full pension från ${allmS}`
+      : `Pension tillgänglig direkt från ${inputs.retire}`;
+  }
 
   $("endAge").textContent     = inputs.lifespan;
   $("endCapital").textContent = fmtKr(result.finalCapital);
@@ -1024,16 +1060,16 @@ function generateInsights(inputs, mc, tier, result, earliestByTier) {
     });
   }
 
-  // — Stor bridge —
-  if (inputs.retire < 64) {
-    const bridgeYears = 64 - inputs.retire;
-    if (bridgeYears >= 10) {
-      insights.push({
-        sev: 1, icon: "⌁",
-        title: `${bridgeYears} år att överbrygga`,
-        body: `Mellan ${inputs.retire} och 64 (lägsta allmän pension 2026) finns inga pensionsutbetalningar. Ditt sparkapital bär hela den perioden.`,
-      });
-    }
+  // — Bridge tills TJP fasas in —
+  const avtalE = (AVTAL[inputs.avtal]?.earliest) ?? 55;
+  const tjpStart = Math.max(inputs.retire, avtalE);
+  const soloYears = tjpStart - inputs.retire;
+  if (soloYears >= 5) {
+    insights.push({
+      sev: 1, icon: "⌁",
+      title: `${soloYears} år innan första pensionen`,
+      body: `Från ${inputs.retire} till ${tjpStart} bär ditt sparkapital allt ensamt — TJP kan tas ut först vid ${avtalE}. Sen fasas tjänstepension och (från 63) allmän pension in och avlastar.`,
+    });
   }
 
   // — Sparkvot —
