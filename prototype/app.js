@@ -655,6 +655,12 @@ function recalc() {
     drawCharts(result.flows, inputs.retire, mc.percentileData);
     updatePlanSummary(inputs, currentTier, mc.successRate);
 
+    // Lugn-score + Insights (Conquest-stil plan-känsla)
+    const scoreData = computeLugnScore(inputs, mc, tier, result);
+    renderPlanScore(scoreData);
+    const insights = generateInsights(inputs, mc, tier, result, earliestByTier);
+    renderInsights(insights);
+
     // Bygg SR-lookup-tabell om inputs ändrats (körs i bakgrunden efter MC)
     const key = `${inputs.age}|${inputs.needPerMonth}|${inputs.savingsPerMonth}|${inputs.iskBalance}|${inputs.kfBalance}|${inputs.depaBalance}|${inputs.tjpPott}|${inputs.tjpPeriod}|${inputs.allmanMonthly}|${inputs.realReturn}|${inputs.inflation}`;
     if (key !== _srTableInputsKey) {
@@ -662,6 +668,201 @@ function recalc() {
       buildSrTable(inputs, lifestyle);
     }
   }, 300);
+}
+
+// ─── Lugn-score (SAM SCORE-motsvarighet) ──────────────────────────────────────
+// Ett tal 0-100 för planens kvalitet. Fyra komponenter, viktade.
+function computeLugnScore(inputs, mc, tier, result) {
+  const minSr = TIER_LIFESTYLE[tier]?.minSuccessRate ?? 0.80;
+
+  // 1. Hållbarhet (45%) — Monte Carlo success rate vs nivåns krav.
+  //    Full poäng vid minSr+10pp, noll vid minSr−40pp.
+  const sustainability = clamp01((mc.successRate - (minSr - 0.40)) / 0.50);
+
+  // 2. Skatteeffektivitet (20%) — andel i skatteeffektiva wrappers.
+  const total = inputs.iskBalance + inputs.kfBalance + inputs.depaBalance;
+  const efficient = inputs.iskBalance + inputs.kfBalance * 0.95;  // depå minst effektiv
+  const taxEff = total > 0 ? efficient / total : 1;
+
+  // 3. Brygga (15%) — håller portföljen hela vägen utan att ta slut?
+  const bridge = result.ran_dry ? 0.35 : 1;
+
+  // 4. Komplett (20%) — har de fyllt i pension-data?
+  let completeness = 0.4;
+  if (inputs.tjpPott > 0)      completeness += 0.3;
+  if (inputs.allmanMonthly > 0) completeness += 0.3;
+
+  const score = Math.round(100 * (
+    0.45 * sustainability +
+    0.20 * taxEff +
+    0.15 * bridge +
+    0.20 * completeness
+  ));
+
+  return { score, parts: { sustainability, taxEff, bridge, completeness }, minSr };
+}
+
+function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+
+function scoreGrade(score) {
+  if (score >= 85) return { label: "Stark plan",    cls: "good" };
+  if (score >= 70) return { label: "Robust plan",   cls: "good" };
+  if (score >= 55) return { label: "Okej plan",     cls: "ok" };
+  if (score >= 40) return { label: "Behöver jobb",  cls: "warn" };
+  return { label: "Tidig fas", cls: "warn" };
+}
+
+// ─── Insights-motor ("Att tänka på") ──────────────────────────────────────────
+// Rangordnade, vägledande observationer. Aldrig dikterande.
+function generateInsights(inputs, mc, tier, result, earliestByTier) {
+  const insights = [];
+  const minSr  = TIER_LIFESTYLE[tier]?.minSuccessRate ?? 0.80;
+  const tierName = TIER_NAMES[tier] || tier;
+  const sr = mc.successRate;
+
+  // — Hållbarhet —
+  if (sr < minSr) {
+    const needed = _srTable.length >= 3 ? srLookup(minSr) : null;
+    insights.push({
+      sev: 3, icon: "⚠",
+      title: "Planen håller inte ända fram",
+      body: `Med ${Math.round(sr*100)}% sannolikhet når den inte ${tierName}-tröskeln på ${Math.round(minSr*100)}%. `
+        + (needed ? `I ett scenario där du går vid ${needed} år istället håller den.` : `Mer sparande eller senare frihet hjälper.`),
+    });
+  } else if (sr - minSr >= 0.10) {
+    const earlier = earliestByTier[tier];
+    insights.push({
+      sev: 1, icon: "✓",
+      title: "Du har god marginal",
+      body: earlier && earlier < inputs.retire
+        ? `Planen är stark. I ett scenario kan du nå ${tierName} redan vid ${earlier} år — eller höja din livsstil.`
+        : `Planen är stark med ${Math.round(sr*100)}% sannolikhet. Du har utrymme att höja din livsstil eller gå tidigare.`,
+    });
+  }
+
+  // — Skatteeffektivitet: depå —
+  if (inputs.depaBalance > 100_000) {
+    insights.push({
+      sev: 2, icon: "◇",
+      title: "Du har kapital i vanlig depå",
+      body: `${fmtKr(inputs.depaBalance)} ligger i aktiedepå med 30% reavinstskatt. Vid avkastning över 3,55% ger ISK oftast mer netto över tid — se jämförelsen nedan.`,
+    });
+  }
+
+  // — Stor KF —
+  if (inputs.kfBalance > 300_000) {
+    insights.push({
+      sev: 1, icon: "◇",
+      title: "Stor kapitalförsäkring",
+      body: `${fmtKr(inputs.kfBalance)} i KF. KF och ISK beskattas lika, men KF har ofta en avtalsavgift. Kontrollera vad din KF kostar per år.`,
+    });
+  }
+
+  // — Saknar allmän pension —
+  if (inputs.allmanMonthly === 0) {
+    insights.push({
+      sev: 2, icon: "○",
+      title: "Lägg in din allmänna pension",
+      body: `Planen räknar nu utan allmän pension, vilket gör den mer pessimistisk än verkligheten. Hämta ditt belopp på minpension.se för en träffsäker bild.`,
+      link: { text: "minpension.se ↗", url: "https://www.minpension.se" },
+    });
+  }
+
+  // — Saknar tjänstepension —
+  if (inputs.tjpPott === 0 && inputs.allmanMonthly >= 0) {
+    insights.push({
+      sev: 1, icon: "○",
+      title: "Har du tjänstepension?",
+      body: `Inget tjänstepensionskapital är inlagt. De flesta anställda har det — det kan vara en betydande del av din pensionsbrygga.`,
+    });
+  }
+
+  // — Frihet före 55 (TJP-spärr) —
+  if (inputs.retire < 55) {
+    insights.push({
+      sev: 2, icon: "⚑",
+      title: "Du planerar frihet före 55",
+      body: `Tjänstepension och privat pensionsförsäkring kan tidigast tas ut vid 55. Hela perioden ${inputs.retire}–55 måste täckas av ISK/depå.`,
+    });
+  }
+
+  // — Stor bridge —
+  if (inputs.retire < 64) {
+    const bridgeYears = 64 - inputs.retire;
+    if (bridgeYears >= 10) {
+      insights.push({
+        sev: 1, icon: "⌁",
+        title: `${bridgeYears} år att överbrygga`,
+        body: `Mellan ${inputs.retire} och 64 (lägsta allmän pension 2026) finns inga pensionsutbetalningar. Ditt sparkapital bär hela den perioden.`,
+      });
+    }
+  }
+
+  // — Sparkvot —
+  const savingsRate = inputs.savingsPerMonth / Math.max(1, inputs.needPerMonth);
+  if (savingsRate < 0.3 && sr < minSr) {
+    insights.push({
+      sev: 2, icon: "▲",
+      title: "Sparkvoten är låg för målet",
+      body: `Du sparar ${fmtKr(inputs.savingsPerMonth)}/mån mot ett behov på ${fmtKr(inputs.needPerMonth)}/mån. Felix poäng: din sparkvot styr ditt frihetsdatum mer än börsavkastningen.`,
+    });
+  }
+
+  // Sortera fallande severity, max 4
+  return insights.sort((a, b) => b.sev - a.sev).slice(0, 4);
+}
+
+function renderPlanScore(scoreData) {
+  const el = $("lugnScore");
+  const ring = $("scoreRing");
+  if (!el) return;
+  const grade = scoreGrade(scoreData.score);
+  el.textContent = scoreData.score;
+  el.className = `score-num ${grade.cls}`;
+  const labelEl = $("scoreGrade");
+  if (labelEl) { labelEl.textContent = grade.label; labelEl.className = `score-grade ${grade.cls}`; }
+
+  // Ring (conic gradient via stroke-dashoffset på SVG-cirkel)
+  if (ring) {
+    const circ = 2 * Math.PI * 52;
+    ring.style.strokeDasharray = `${circ}`;
+    ring.style.strokeDashoffset = `${circ * (1 - scoreData.score / 100)}`;
+    ring.style.stroke = grade.cls === "good" ? "#3a5a40" : grade.cls === "ok" ? "#b07d2a" : "#c46d4d";
+  }
+
+  // Delkomponenter
+  const partsEl = $("scoreParts");
+  if (partsEl) {
+    const p = scoreData.parts;
+    const bar = (label, val) => `
+      <div class="score-part">
+        <span class="score-part-label">${label}</span>
+        <span class="score-part-bar"><span style="width:${Math.round(val*100)}%"></span></span>
+      </div>`;
+    partsEl.innerHTML =
+      bar("Hållbarhet", p.sustainability) +
+      bar("Skatteeffektivitet", p.taxEff) +
+      bar("Brygga håller", p.bridge) +
+      bar("Komplett underlag", p.completeness);
+  }
+}
+
+function renderInsights(insights) {
+  const el = $("insightsList");
+  if (!el) return;
+  if (insights.length === 0) {
+    el.innerHTML = `<div class="insight-empty">Inga flaggor — din plan ser balanserad ut.</div>`;
+    return;
+  }
+  const sevClass = s => s >= 3 ? "sev-high" : s === 2 ? "sev-mid" : "sev-low";
+  el.innerHTML = insights.map(i => `
+    <div class="insight ${sevClass(i.sev)}">
+      <span class="insight-icon">${i.icon}</span>
+      <div class="insight-body">
+        <div class="insight-title">${i.title}</div>
+        <div class="insight-text">${i.body}${i.link ? ` <a href="${i.link.url}" target="_blank">${i.link.text}</a>` : ""}</div>
+      </div>
+    </div>`).join("");
 }
 
 // ─── ISK vs AF/Depå-jämförelse ────────────────────────────────────────────────

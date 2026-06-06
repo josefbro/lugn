@@ -193,6 +193,173 @@ body {
   letter-spacing: .1em;
 }
 
+/* === MINA FÖRUTSÄTTNINGAR header === */
+.calc-inputs-header {
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: 600;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* === PLAN HERO (score + svar) === */
+.plan-hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  background: linear-gradient(135deg, var(--sage-900), #243d1c);
+  color: var(--cream-50);
+  border-radius: var(--radius);
+  padding: 24px 26px;
+  margin-bottom: 14px;
+}
+.plan-score-card {
+  position: relative;
+  width: 120px; height: 120px;
+  flex-shrink: 0;
+}
+.score-ring-svg { width: 120px; height: 120px; }
+.score-ring-bg {
+  fill: none;
+  stroke: rgba(255,255,255,.12);
+  stroke-width: 8;
+}
+.score-ring {
+  fill: none;
+  stroke: #3a5a40;
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset .6s ease, stroke .3s;
+}
+.score-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.score-num {
+  font-family: var(--serif);
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cream-50);
+}
+.score-num.good { color: #9ed9b4; }
+.score-num.ok   { color: #e8c07d; }
+.score-num.warn { color: #f4a98a; }
+.score-of { font-size: 12px; opacity: .6; margin-top: 2px; }
+
+.plan-hero-text { flex: 1; }
+.plan-hero-eyebrow {
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  opacity: .75;
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.score-grade {
+  font-family: var(--sans);
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  letter-spacing: .04em;
+  text-transform: none;
+}
+.score-grade.good { background: rgba(126,200,160,.2); color: #9ed9b4; }
+.score-grade.ok   { background: rgba(232,192,125,.2); color: #e8c07d; }
+.score-grade.warn { background: rgba(244,169,138,.2); color: #f4a98a; }
+
+.plan-hero .answer-hero-label { font-size: 13px; opacity: .8; margin-bottom: 2px; }
+.plan-hero .answer-hero-age {
+  font-family: var(--serif);
+  font-size: 48px; font-weight: 700;
+  line-height: 1; letter-spacing: -.02em;
+}
+.plan-hero .answer-hero-sub { font-size: 14px; opacity: .8; margin-top: 6px; }
+
+@media (max-width: 500px) {
+  .plan-hero { flex-direction: column; text-align: center; }
+}
+
+/* === SCORE PARTS === */
+.score-parts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 20px;
+  background: var(--cream-100);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+.score-part { display: flex; flex-direction: column; gap: 4px; }
+.score-part-label { font-size: 12px; color: var(--ink-600); }
+.score-part-bar {
+  height: 5px;
+  background: var(--cream-200);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.score-part-bar span {
+  display: block;
+  height: 100%;
+  background: var(--sage-500);
+  border-radius: 3px;
+  transition: width .5s ease;
+}
+
+/* === INSIGHTS === */
+.insights-section { margin-bottom: 20px; }
+.insights-header {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.insights-list { display: flex; flex-direction: column; gap: 8px; }
+.insight {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--cream-50);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+}
+.insight.sev-high { border-left-color: var(--coral-500); }
+.insight.sev-mid  { border-left-color: #b07d2a; }
+.insight.sev-low  { border-left-color: var(--sage-500); }
+.insight-icon {
+  font-size: 16px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+.insight.sev-high .insight-icon { color: var(--coral-500); }
+.insight.sev-mid  .insight-icon { color: #b07d2a; }
+.insight.sev-low  .insight-icon { color: var(--sage-700); }
+.insight-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+.insight-text {
+  font-size: 13px;
+  color: var(--ink-600);
+  line-height: 1.5;
+}
+.insight-text a { color: var(--sage-700); }
+.insight-empty {
+  font-size: 14px;
+  color: var(--ink-400);
+  padding: 12px 0;
+}
+
 /* === AGE HERO (input-sidan) === */
 .age-hero {
   display: flex; align-items: center; gap: 12px;

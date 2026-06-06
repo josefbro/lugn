@@ -254,11 +254,12 @@
 
   <section id="kalkylator" class="band">
     <div class="container">
-      <h2 class="section-h">När kan du sluta jobba?</h2>
-      <p class="section-sub">Fyll i dina siffror — appen räknar ut din plan och chansen att den håller hela vägen.</p>
+      <h2 class="section-h">Din plan</h2>
+      <p class="section-sub">Ett levande dokument, inte en engångsuträkning. Ändra dina förutsättningar till vänster — planen, din Lugn-score och vad du bör tänka på uppdateras direkt.</p>
 
       <div class="calc">
         <div class="calc-inputs">
+          <div class="calc-inputs-header">Mina förutsättningar</div>
 
           <!-- Huvud-frågan: åldrarna -->
           <div class="age-hero">
@@ -356,11 +357,36 @@
 
         <div class="calc-output">
 
-          <!-- PERSON-CENTRERAT SVAR: "Du kan sluta vid X år" -->
-          <div class="answer-hero">
-            <div class="answer-hero-label">Du kan sluta jobba vid</div>
-            <div class="answer-hero-age" id="answerAge">— år</div>
-            <div class="answer-hero-sub" id="answerSub">Beräknar…</div>
+          <!-- PLAN-SCORE + SVAR (Conquest-stil plan-hjälte) -->
+          <div class="plan-hero">
+            <div class="plan-score-card">
+              <svg class="score-ring-svg" viewBox="0 0 120 120">
+                <circle class="score-ring-bg" cx="60" cy="60" r="52"></circle>
+                <circle class="score-ring" id="scoreRing" cx="60" cy="60" r="52"
+                  transform="rotate(-90 60 60)"></circle>
+              </svg>
+              <div class="score-center">
+                <div class="score-num" id="lugnScore">—</div>
+                <div class="score-of">/ 100</div>
+              </div>
+            </div>
+            <div class="plan-hero-text">
+              <div class="plan-hero-eyebrow">Din Lugn-score <span class="score-grade" id="scoreGrade">—</span></div>
+              <div class="answer-hero-label">Du kan sluta jobba vid</div>
+              <div class="answer-hero-age" id="answerAge">— år</div>
+              <div class="answer-hero-sub" id="answerSub">Beräknar…</div>
+            </div>
+          </div>
+
+          <!-- Score-delkomponenter -->
+          <div class="score-parts" id="scoreParts"></div>
+
+          <!-- Att tänka på (Insights) -->
+          <div class="insights-section">
+            <div class="insights-header">Att tänka på</div>
+            <div class="insights-list" id="insightsList">
+              <div class="insight-empty">Räknar din plan…</div>
+            </div>
           </div>
 
           <!-- Snabb vad-händer-om rad -->
