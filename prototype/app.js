@@ -33,6 +33,33 @@ function tjpPayout(pott, period) {
   return pott * r / (1 - Math.pow(1 + r, -n));
 }
 
+// ─── AP7 Såfa-glidbana (livscykel-de-risking) ─────────────────────────────────
+// AP7-default: 100% aktier till 55, linjär infasning räntor till 33/67 vid 75.
+// Antaganden: aktier real 5%/σ17%, räntor real 1%/σ5%, korr ≈ 0.
+const EQ_MU = 0.05, EQ_SIG = 0.17, BOND_MU = 0.01, BOND_SIG = 0.05;
+
+function equityFractionAtAge(age) {
+  if (age <= 55) return 1.0;
+  if (age >= 75) return 0.33;
+  return 1.0 - (age - 55) / 20 * (1.0 - 0.33);   // linjär 100% → 33%
+}
+
+// Förväntad real avkastning vid en ålder, med eller utan glidbana.
+function expectedRealReturnAtAge(age, inputs) {
+  if (!_glidbana) return inputs.realReturn / 100;
+  const e = equityFractionAtAge(age);
+  return e * EQ_MU + (1 - e) * BOND_MU;
+}
+
+// Volatilitet vid en ålder (för MC).
+function volAtAge(age) {
+  if (!_glidbana) return MC_SIGMA;
+  const e = equityFractionAtAge(age);
+  return Math.sqrt((e * EQ_SIG) ** 2 + ((1 - e) * BOND_SIG) ** 2);
+}
+
+let _glidbana = false;   // sätts av toggle i avancerat
+
 // ─── Deterministisk simulering ───────────────────────────────────────────────
 // returnOverride: array[year] av faktisk real avkastning (för Monte Carlo)
 function simulate(inputs, opts = {}) {
@@ -58,7 +85,10 @@ function simulate(inputs, opts = {}) {
 
   for (let a = age; a <= lifespan; a++) {
     const i   = a - age;
-    const nom = retOverride ? retOverride[i] + inf : nomBase;
+    // Nominell avkastning: MC-override, annars glidbane-justerad eller flat
+    const nom = retOverride
+      ? retOverride[i] + inf
+      : (_glidbana ? expectedRealReturnAtAge(a, { realReturn }) + inf : nomBase);
     const needAnnual = needPerMonth * 12 * Math.pow(1 + inf, i);
     const inAccum    = a < retire;
 
@@ -149,10 +179,14 @@ function runMonteCarlo(inputs, opts = {}) {
   const allCapitals = Array.from({ length: years }, () => []);
 
   for (let p = 0; p < MC_PATHS; p++) {
-    // Sampla en avkastnings-bana med fat-tailed (Student-t) avkastning
-    const ret = Array.from({ length: years }, () =>
-      MC_MU_REAL + randStudentT() * MC_SIGMA
-    );
+    // Sampla en avkastnings-bana med fat-tailed (Student-t) avkastning.
+    // Vid glidbana varierar förväntad avkastning och vol med åldern.
+    const ret = Array.from({ length: years }, (_, i) => {
+      const age = inputs.age + i;
+      const mu  = _glidbana ? expectedRealReturnAtAge(age, inputs) : MC_MU_REAL;
+      const sig = volAtAge(age);
+      return mu + randStudentT() * sig;
+    });
     const res = simulate(inputs, { ...opts, returnOverride: ret });
     if (!res.ran_dry) successes++;
     res.flows.forEach((f, i) => allCapitals[i].push(f.totalCapital));
@@ -524,6 +558,7 @@ function getInputs() {
 }
 
 function recalc() {
+  _glidbana = !!document.getElementById("glidbana")?.checked;
   const inputs = getInputs();
 
   const lifestyle = activeTier

@@ -193,6 +193,14 @@ body {
   letter-spacing: .1em;
 }
 
+/* === TOGGLE-rad === */
+.toggle-label { align-items: center; }
+.toggle-label input[type="checkbox"] {
+  width: 20px !important; height: 20px;
+  accent-color: var(--sage-700);
+  cursor: pointer;
+}
+
 /* === MINA FÖRUTSÄTTNINGAR header === */
 .calc-inputs-header {
   font-size: 12px;
