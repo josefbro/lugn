@@ -544,8 +544,38 @@
             </div>
           </div>
 
+          <!-- Behavioral Shock Simulator -->
+          <div class="shock-wrap">
+            <h4 class="shock-title">Tål du en krasch?</h4>
+            <p class="chart-help">Det farligaste för en plan är en stor nedgång precis när du blir fri (sekvensrisk). Här i kronor, inte procent — för det är så det känns.</p>
+            <div class="shock-chips">
+              <button class="shock-chip selected" data-crash="2008" type="button">Finanskrisen 2008</button>
+              <button class="shock-chip" data-crash="2000" type="button">IT-bubblan 2000</button>
+              <button class="shock-chip" data-crash="2020" type="button">Covid 2020</button>
+              <button class="shock-chip" data-crash="1973" type="button">Stagflation 70-tal</button>
+            </div>
+            <div class="shock-result" id="shockResult"></div>
+          </div>
+
+          <!-- Fee Drag Auditor -->
+          <div class="fee-wrap">
+            <h4 class="fee-title">Vad kostar dina avgifter?</h4>
+            <p class="chart-help">En aktiv fond på 1,5% mot en indexfond på 0,2% — skillnaden ser liten ut men ränta-på-ränta gör den till en förmögenhet.</p>
+            <div class="fee-inputs">
+              <label class="fee-input-label">
+                <span>Din nuvarande avgift %</span>
+                <input type="number" id="feeHigh" value="1.5" step="0.1" min="0" max="3">
+              </label>
+              <label class="fee-input-label">
+                <span>Indexfond-alternativ %</span>
+                <input type="number" id="feeLow" value="0.2" step="0.1" min="0" max="3">
+              </label>
+            </div>
+            <div class="fee-result" id="feeDragResult"></div>
+          </div>
+
           <div class="microcopy">
-            <p><strong>Tips:</strong> Klicka en FIRE-nivå för att se hur den livsstilen påverkar planen. Monte Carlo kör 5 000 slumpmässiga börsbanor — sannolikheten att pengarna räcker hela vägen.</p>
+            <p><strong>Tips:</strong> Klicka en FIRE-nivå för att se hur den livsstilen påverkar planen. Monte Carlo kör 5 000 slumpmässiga börsbanor med <em>fat-tailed</em> avkastning (Student-t) — fångar svarta svanar som 2008 bättre än en vanlig normalfördelning.</p>
           </div>
 
         </div>

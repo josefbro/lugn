@@ -110,16 +110,34 @@ function simulate(inputs, opts = {}) {
 }
 
 // ─── Monte Carlo ─────────────────────────────────────────────────────────────
-// Enkel parametrisk MC: real return ~ Normal(mu, sigma)
-// Historisk global aktier real: mu≈5%, sigma≈17%
+// Fat-tailed MC: real return ~ skalad Student-t (tjocka svansar).
+// Verkliga börsavkastningar har fler extremutfall än normalfördelningen antar
+// (svarta svanar: 2008, 2020). Student-t med ν=5 fångar detta.
 const MC_PATHS    = 5_000;
 const MC_MU_REAL  = 0.05;
 const MC_SIGMA    = 0.17;
+const MC_NU       = 5;     // frihetsgrader — lägre = tjockare svansar
 
 // Box-Muller normalfördelad slumptal
 function randn() {
   const u = 1 - Math.random(), v = Math.random();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+// Chi-square(k) via summa av k kvadrerade normaler
+function randChi2(k) {
+  let s = 0;
+  for (let i = 0; i < k; i++) { const z = randn(); s += z * z; }
+  return s;
+}
+
+// Student-t-fördelat slumptal, skalat till enhetsvarians.
+// t = Z / sqrt(W/ν), sedan × sqrt((ν-2)/ν) för std = 1.
+function randStudentT(nu = MC_NU) {
+  const z = randn();
+  const w = randChi2(nu);
+  const t = z / Math.sqrt(w / nu);
+  return t * Math.sqrt((nu - 2) / nu);   // normaliserad till std 1
 }
 
 function runMonteCarlo(inputs, opts = {}) {
@@ -131,9 +149,9 @@ function runMonteCarlo(inputs, opts = {}) {
   const allCapitals = Array.from({ length: years }, () => []);
 
   for (let p = 0; p < MC_PATHS; p++) {
-    // Sampla en avkastnings-bana
+    // Sampla en avkastnings-bana med fat-tailed (Student-t) avkastning
     const ret = Array.from({ length: years }, () =>
-      MC_MU_REAL + randn() * MC_SIGMA
+      MC_MU_REAL + randStudentT() * MC_SIGMA
     );
     const res = simulate(inputs, { ...opts, returnOverride: ret });
     if (!res.ran_dry) successes++;
@@ -487,8 +505,8 @@ let _lastMcData  = null;
 let _srTable     = [];   // [{age, rate}] förberäknad lookup för success-rate slider
 let _srTableInputsKey = ""; // cache-nyckel så vi inte räknar om i onödan
 
-function recalc() {
-  const inputs = {
+function getInputs() {
+  return {
     age:            +$("age").value,
     retire:         +$("retire").value,
     lifespan:       +$("lifespan").value,
@@ -503,6 +521,10 @@ function recalc() {
     realReturn:     +$("realReturn").value,
     inflation:      +$("inflation").value,
   };
+}
+
+function recalc() {
+  const inputs = getInputs();
 
   const lifestyle = activeTier
     ? TIER_LIFESTYLE[activeTier]
@@ -595,6 +617,8 @@ function recalc() {
   }
 
   syncIskAfDefaults();
+  renderShock(inputs);
+  renderFeeDrag();
 
   // Synka reverseAge med retire om användaren inte rört den
   const raInput = $("reverseAge");
@@ -1095,6 +1119,123 @@ function updateIskAfComparison() {
   renderIskVsAfChart(initial, monthly, years, ret);
 }
 
+// ─── Behavioral Shock Simulator ───────────────────────────────────────────────
+// Visar en historisk krasch i ABSOLUTA KRONOR (ej procent) vid sämsta tänkbara
+// tidpunkt: året du går i pension (sequence-of-returns-risk). Testar tålamod.
+const CRASH_SCENARIOS = {
+  "2008":   { label: "Finanskrisen 2008", drop: 0.50, recoveryYears: 4,
+              note: "Global aktiemarknad föll ~50% topp till botten. Återhämtning ~4 år." },
+  "2000":   { label: "IT-bubblan 2000",   drop: 0.45, recoveryYears: 6,
+              note: "Långsam, utdragen nedgång. ~6 år till återhämtning." },
+  "2020":   { label: "Covid-kraschen 2020", drop: 0.34, recoveryYears: 1,
+              note: "Brant fall, ovanligt snabb återhämtning (~6 mån)." },
+  "1973":   { label: "Stagflation 70-tal", drop: 0.45, recoveryYears: 8,
+              note: "Krasch + hög inflation. Värst i reala termer — köpkraften åt upp resten." },
+};
+let activeCrash = "2008";
+
+function computeShock(inputs, crashPct) {
+  // Portfölj vid pensionsåldern (deterministisk bana)
+  const base = simulate(inputs);
+  const flowAtRetire = base.flows.find(f => f.age === inputs.retire);
+  const portfolioAtRetire = flowAtRetire?.totalCapital ?? 0;
+  const lossSEK = portfolioAtRetire * crashPct;
+  const afterCrash = portfolioAtRetire - lossSEK;
+
+  // Överlever planen en krasch året man går? Injicera stort negativt år vid retire.
+  const years = inputs.lifespan - inputs.age + 1;
+  const crashYearIdx = inputs.retire - inputs.age;
+  const ret = Array.from({ length: years }, (_, i) =>
+    i === crashYearIdx ? -crashPct : MC_MU_REAL
+  );
+  const shocked = simulate(inputs, { returnOverride: ret });
+  const survives = !shocked.ran_dry;
+  const finalAfter = shocked.flows[shocked.flows.length - 1].totalCapital;
+
+  return { portfolioAtRetire, lossSEK, afterCrash, survives, finalAfter };
+}
+
+function renderShock(inputs) {
+  const el = document.getElementById("shockResult");
+  if (!el) return;
+  const scenario = CRASH_SCENARIOS[activeCrash];
+  const s = computeShock(inputs, scenario.drop);
+
+  const verdict = s.survives
+    ? `<span class="shock-verdict good">✓ Din plan tål det</span>`
+    : `<span class="shock-verdict warn">⚠ Detta skulle tvinga dig tillbaka till jobbet</span>`;
+
+  el.innerHTML = `
+    <div class="shock-big">
+      <span class="shock-loss">−${fmtKr(s.lossSEK)}</span>
+      <span class="shock-loss-sub">så mycket faller din portfölj samma år du blir fri</span>
+    </div>
+    <div class="shock-flow">
+      <span>${fmtKr(s.portfolioAtRetire)}</span>
+      <span class="shock-arrow">→</span>
+      <span class="shock-after">${fmtKr(s.afterCrash)}</span>
+    </div>
+    ${verdict}
+    <p class="shock-note">${scenario.note}</p>
+  `;
+}
+
+function setupShockChips() {
+  document.querySelectorAll(".shock-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      document.querySelectorAll(".shock-chip").forEach(c => c.classList.remove("selected"));
+      chip.classList.add("selected");
+      activeCrash = chip.dataset.crash;
+      renderShock(getInputs());
+    });
+  });
+}
+
+// ─── Fee Drag Auditor ──────────────────────────────────────────────────────────
+// Visar sammansatt avgiftsdrag över livstid: dyr aktiv fond vs billig indexfond.
+function computeFeeDrag(initial, monthly, years, grossReturn, highFee, lowFee) {
+  const fv = (annualFee) => {
+    const r = (grossReturn - annualFee) / 100;
+    let bal = initial;
+    for (let y = 0; y < years; y++) bal = bal * (1 + r) + monthly * 12;
+    return bal;
+  };
+  const high = fv(highFee);
+  const low  = fv(lowFee);
+  return { high, low, drag: low - high };
+}
+
+function renderFeeDrag() {
+  const el = document.getElementById("feeDragResult");
+  if (!el) return;
+  const initial = getInputs().iskBalance;
+  const monthly = getInputs().savingsPerMonth;
+  const years   = Math.max(5, 65 - getInputs().age);
+  const gross   = getInputs().realReturn + getInputs().inflation;
+  const highFee = +document.getElementById("feeHigh")?.value || 1.5;
+  const lowFee  = +document.getElementById("feeLow")?.value  || 0.2;
+
+  const r = computeFeeDrag(initial, monthly, years, gross, highFee, lowFee);
+
+  el.innerHTML = `
+    <div class="fee-big">−${fmtKr(r.drag)}</div>
+    <div class="fee-sub">extra du betalar över ${years} år med ${highFee}% avgift istället för ${lowFee}%</div>
+    <div class="fee-bars">
+      <div class="fee-bar-row">
+        <span class="fee-bar-label">${lowFee}% indexfond</span>
+        <span class="fee-bar"><span class="fee-bar-fill low" style="width:100%"></span></span>
+        <span class="fee-bar-val">${fmtKr(r.low)}</span>
+      </div>
+      <div class="fee-bar-row">
+        <span class="fee-bar-label">${highFee}% aktiv fond</span>
+        <span class="fee-bar"><span class="fee-bar-fill high" style="width:${Math.round(r.high/r.low*100)}%"></span></span>
+        <span class="fee-bar-val">${fmtKr(r.high)}</span>
+      </div>
+    </div>
+    <p class="fee-note">Avgiften ser liten ut per år, men ränta-på-ränta gör den enorm över tid. Detta är en av de få saker du säkert kan kontrollera.</p>
+  `;
+}
+
 // ─── SR lookup-tabell ─────────────────────────────────────────────────────────
 // Räknar MC för retire-åldrar från age+5 till 72 med steg 3.
 // ~13 datapunkter × 124ms ≈ 1.6s, körs en gång i bakgrunden.
@@ -1300,8 +1441,12 @@ $("advancedToggle")?.addEventListener("click", () => {
   arrow.textContent = open ? "▴" : "▾";
 });
 
+["feeHigh","feeLow"].forEach(id =>
+  document.getElementById(id)?.addEventListener("input", renderFeeDrag));
+
 window.addEventListener("DOMContentLoaded", () => {
   setupLifestyleChips();
+  setupShockChips();
   applyOnboardingAnswers();
   if (localStorage.getItem("lugn_onboarding_done")) {
     const hero = document.querySelector(".hero");

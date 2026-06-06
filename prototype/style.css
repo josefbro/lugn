@@ -1025,6 +1025,114 @@ canvas {
   line-height: 1.55;
 }
 
+/* === BEHAVIORAL SHOCK === */
+.shock-wrap {
+  background: var(--cream-100);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+.shock-title, .fee-title {
+  font-family: var(--serif);
+  font-size: 18px; font-weight: 600;
+  margin: 0 0 4px;
+}
+.shock-chips {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin: 14px 0 18px;
+}
+.shock-chip {
+  padding: 8px 14px;
+  background: var(--cream-50);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  font-size: 13px; cursor: pointer;
+  font-family: var(--sans);
+  transition: all .15s;
+}
+.shock-chip:hover { border-color: var(--coral-500); }
+.shock-chip.selected {
+  background: var(--sage-900); color: var(--cream-50);
+  border-color: var(--sage-900);
+}
+.shock-big { margin-bottom: 12px; }
+.shock-loss {
+  font-family: var(--serif);
+  font-size: 40px; font-weight: 700;
+  color: var(--coral-600);
+  display: block; line-height: 1;
+}
+.shock-loss-sub { font-size: 13px; color: var(--ink-600); }
+.shock-flow {
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--serif); font-size: 18px;
+  margin-bottom: 12px; flex-wrap: wrap;
+}
+.shock-arrow { color: var(--ink-400); }
+.shock-after { color: var(--ink-600); }
+.shock-verdict {
+  display: inline-block;
+  font-weight: 600; font-size: 15px;
+  padding: 6px 14px; border-radius: var(--radius-sm);
+}
+.shock-verdict.good { background: rgba(58,90,64,.12); color: var(--sage-700); }
+.shock-verdict.warn { background: rgba(196,109,77,.14); color: var(--coral-600); }
+.shock-note {
+  font-size: 13px; color: var(--ink-400);
+  margin: 12px 0 0;
+}
+
+/* === FEE DRAG === */
+.fee-wrap {
+  background: var(--cream-100);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+.fee-inputs {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; margin: 14px 0 18px;
+}
+.fee-input-label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--ink-400); font-weight: 500;
+}
+.fee-input-label input {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px; font-size: 14px;
+  background: var(--cream-50);
+}
+.fee-big {
+  font-family: var(--serif);
+  font-size: 36px; font-weight: 700;
+  color: var(--coral-600); line-height: 1;
+}
+.fee-sub { font-size: 13px; color: var(--ink-600); margin: 4px 0 16px; }
+.fee-bars { display: flex; flex-direction: column; gap: 10px; }
+.fee-bar-row {
+  display: grid;
+  grid-template-columns: 130px 1fr auto;
+  align-items: center; gap: 12px;
+  font-size: 13px;
+}
+.fee-bar-label { color: var(--ink-600); }
+.fee-bar {
+  height: 14px; background: var(--cream-200);
+  border-radius: 7px; overflow: hidden;
+}
+.fee-bar-fill {
+  display: block; height: 100%;
+  border-radius: 7px;
+  transition: width .5s ease;
+}
+.fee-bar-fill.low  { background: var(--sage-700); }
+.fee-bar-fill.high { background: var(--coral-500); }
+.fee-bar-val { font-family: var(--serif); font-weight: 600; color: var(--ink-900); }
+.fee-note { font-size: 13px; color: var(--ink-400); margin: 14px 0 0; }
+
 /* === FOOTER === */
 footer {
   padding: 32px 0;
