@@ -193,6 +193,14 @@ body {
   letter-spacing: .1em;
 }
 
+/* === FIELD NOTE (liten not under fält) === */
+.field-note {
+  font-size: 11px;
+  color: var(--ink-400);
+  margin: -6px 0 6px;
+  line-height: 1.4;
+}
+
 /* === TOGGLE-rad === */
 .toggle-label { align-items: center; }
 .toggle-label input[type="checkbox"] {

@@ -152,8 +152,9 @@ function simulate(inputs, opts = {}) {
   const inf     = inflation / 100;
   const nomBase = (realReturn + inflation) / 100;
 
-  // Allmän pension skalas ned om man slutar jobba tidigt (färre avsättningsår)
-  const allmanEff = allmanMonthly * allmanFactor(retire);
+  // allmanMonthly-fältet är redan den effektiva pensionen vid vald frihetsålder
+  // (för-ifylls reducerat från lön + allmanFactor i recalc).
+  const allmanEff = allmanMonthly;
 
   // TJP-pott + framtida avsättningar medan man jobbar (växer potten vid sen pension)
   const yearsToTjp = Math.max(0, 65 - age);
@@ -654,11 +655,12 @@ function recalc() {
   const krEl = document.getElementById("kommunRate");
   if (krEl) krEl.textContent = `${(_kommunalskatt*100).toFixed(2)}% kommunalskatt`;
 
-  // För-ifyll allmän pension från lön (om användaren inte ändrat manuellt)
+  // För-ifyll allmän pension från lön — VID VALD FRIHETSÅLDER (reducerad).
   const salaryVal = +($("salary")?.value || 0);
+  const retireVal = +$("retire").value;
   const amField = $("allmanMonthly");
   if (amField && salaryVal > 0 && !amField._userEdited) {
-    amField.value = Math.round(allmanAt65Full(salaryVal));
+    amField.value = Math.round(allmanAt65Full(salaryVal) * allmanFactor(retireVal));
   }
 
   const inputs = getInputs();
@@ -682,15 +684,18 @@ function recalc() {
   // Hint på lön-fältet
   const acEl = document.getElementById("allmanComputed");
   if (acEl) {
-    if (salaryVal > 0) {
-      const eff = inputs.allmanMonthly * allmanFactor(inputs.retire);
-      acEl.textContent = inputs.retire < 65
-        ? `→ fyller i fältet nedan · vid frihet ${inputs.retire} blir den ≈ ${fmtKr(eff)}/mån`
-        : `→ fyller i allmän pension nedan`;
-    } else if (amField && amField._userEdited) {
-      acEl.textContent = "eller fyll i allmän pension direkt nedan";
+    acEl.textContent = salaryVal > 0 ? "→ fyller i allmän pension nedan" : "räknar allmän pension åt dig";
+  }
+
+  // Liten not under allmän pension-fältet: vad du får om du jobbar till 65
+  const at65El = document.getElementById("allmanAt65Note");
+  if (at65El) {
+    if (salaryVal > 0 && inputs.retire < 65) {
+      const full65 = Math.round(allmanAt65Full(salaryVal));
+      at65El.textContent = `Vid din frihetsålder ${inputs.retire}. Jobbar du till 65: ≈ ${fmtKr(full65)}/mån.`;
+      at65El.style.display = "";
     } else {
-      acEl.textContent = "räknar allmän pension åt dig";
+      at65El.style.display = "none";
     }
   }
 
@@ -970,16 +975,18 @@ function generateInsights(inputs, mc, tier, result, earliestByTier) {
     });
   }
 
-  // — Early retirement sänker pensionen —
-  if (inputs.retire < 62 && inputs.allmanMonthly > 0) {
+  // — Early retirement sänker pensionen (räknat från lön) —
+  const salaryForInsight = +($("salary")?.value || 0);
+  if (inputs.retire < 62 && salaryForInsight > 0) {
     const f = allmanFactor(inputs.retire);
-    const reduced = Math.round(inputs.allmanMonthly * f);
-    const lost = inputs.allmanMonthly - reduced;
+    const full = Math.round(allmanAt65Full(salaryForInsight));
+    const reduced = Math.round(full * f);
+    const lost = full - reduced;
     if (lost > 500) {
       insights.push({
         sev: 2, icon: "↓",
         title: "Tidig frihet sänker din allmänna pension",
-        body: `Slutar du jobba vid ${inputs.retire} betalar du in pension i färre år. Din allmänna pension blir ca <strong>${fmtKr(reduced)}/mån</strong> istället för ${fmtKr(inputs.allmanMonthly)} (–${Math.round((1-f)*100)}%). Planen räknar redan med detta. Garantipensionen ger ett golv från 66.`,
+        body: `Slutar du jobba vid ${inputs.retire} betalar du in pension i färre år. Din allmänna pension blir ca <strong>${fmtKr(reduced)}/mån</strong> istället för ${fmtKr(full)} vid 65 (–${Math.round((1-f)*100)}%). Planen räknar redan med detta. Garantipensionen ger ett golv.`,
       });
     }
   }
@@ -1452,7 +1459,7 @@ function tjpAnnuityReal(pottToday, period) {
 // dagens skiktgräns. Pott antas växa ~2% realt fram till 65.
 function pensionRealAtAge(inputs, age, tjpPeriod) {
   if (age < 65) return 0;
-  let g = inputs.allmanMonthly * allmanFactor(inputs.retire) * 12;   // reducerad vid tidig frihet
+  let g = inputs.allmanMonthly * 12;   // fältet är redan effektivt vid frihetsåldern
   const yearsToTjp = Math.max(0, 65 - inputs.age);
   let pott65Real = inputs.tjpPott * Math.pow(1.02, yearsToTjp);
   for (let a2 = inputs.age; a2 < inputs.retire && a2 < 65; a2++) {
