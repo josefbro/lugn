@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=44">
-<link rel="stylesheet" href="onboarding.css?v=44">
+<link rel="stylesheet" href="style.css?v=45">
+<link rel="stylesheet" href="onboarding.css?v=45">
 </head>
 <body>
 
@@ -276,6 +276,21 @@
               <input type="text" inputmode="numeric" class="num" id="needPerMonth" value="30000" step="1000">
             </label>
             <p class="need-hint">Pengarna du faktiskt får i handen att leva på som fri — inte bruttolön.</p>
+
+            <label class="need-input-label" style="margin-top:14px">
+              <span>Jobba deltid efter frihet? <span class="input-hint">sänker hur mycket du behöver</span></span>
+              <select id="partTimePct" style="width:auto;text-align:left">
+                <option value="0">Nej, sluta helt</option>
+                <option value="25">Ja, 25 %</option>
+                <option value="50">Ja, 50 %</option>
+                <option value="75">Ja, 75 %</option>
+              </select>
+            </label>
+            <label class="need-input-label" id="partTimeUntilRow" style="display:none">
+              <span>…deltid till ålder</span>
+              <input type="number" id="partTimeUntil" value="60" min="40" max="75">
+            </label>
+            <p class="need-hint" id="partTimeHint" style="display:none"></p>
           </div>
 
           <h3>Dina pengar</h3>
@@ -743,9 +758,9 @@
   <span class="reset-fab-icon">↺</span><span class="reset-fab-label"> Ta om frågorna</span>
 </button>
 
-<script src="kommunalskatt.js?v=44"></script>
-<script src="market_history.js?v=44"></script>
-<script src="onboarding.js?v=44"></script>
-<script src="app.js?v=44"></script>
+<script src="kommunalskatt.js?v=45"></script>
+<script src="market_history.js?v=45"></script>
+<script src="onboarding.js?v=45"></script>
+<script src="app.js?v=45"></script>
 </body>
 </html>

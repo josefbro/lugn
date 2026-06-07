@@ -194,10 +194,9 @@ function simulate(inputs, opts = {}) {
           iskBalance, kfBalance, depaBalance,
           tjpPott, tjpPeriod, allmanMonthly, tjpContrib = 0, avtal = "ingen",
           realReturn, inflation,
-          loanBalance = 0, loanRate = 0, loanAmort = 0 } = inputs;
+          loanBalance = 0, loanRate = 0, loanAmort = 0,
+          sideIncomeAnnual = 0, partTimeUntilAge = 0 } = inputs;
 
-  const sideRatio    = opts.sideIncomeRatio    ?? 0;
-  const sideUntilAge = opts.sideIncomeUntilAge ?? 0;
   const retOverride  = opts.returnOverride;    // array[i] eller undefined
 
   const inf     = inflation / 100;
@@ -284,7 +283,9 @@ function simulate(inputs, opts = {}) {
       // Pension beskattas som inkomst → netto täcker det efter-skatt-behovet.
       const pensionTax = lonTax(pensionGross, a);
       pensionNet = pensionGross - pensionTax;
-      const sideIncome = a < sideUntilAge ? needAnnual * sideRatio : 0;
+      // Deltidsinkomst efter frihet (netto, dagens kr) täcker en del av behovet
+      // under [retire, partTimeUntilAge). Minskar uttaget ur portföljen.
+      const sideIncome = (a >= retire && a < partTimeUntilAge) ? sideIncomeAnnual * inflAdj : 0;
       let still = needAnnual - pensionNet - sideIncome;   // återstående efter-skatt-gap
 
       if (still > 0) {
@@ -851,10 +852,18 @@ let _srTable     = [];   // [{age, rate}] förberäknad lookup för success-rate
 let _srTableInputsKey = ""; // cache-nyckel så vi inte räknar om i onödan
 
 function getInputs() {
+  const age = +$("age").value;
+  // Deltidsarbete efter frihet: nettolön av X % av lönen täcker en del av behovet.
+  const ptPct   = +($("partTimePct")?.value || 0);
+  const ptUntil = +($("partTimeUntil")?.value || 0);
+  const salaryY = numv("salary") * (ptPct / 100) * 12;
+  const sideIncomeAnnual = ptPct > 0 ? Math.max(0, salaryY - lonTax(salaryY, age)) : 0;
   return {
-    age:            +$("age").value,
+    age,
     retire:         +$("retire").value,
     lifespan:       +$("lifespan").value,
+    sideIncomeAnnual,
+    partTimeUntilAge: ptPct > 0 ? ptUntil : 0,
     needPerMonth:   numv("needPerMonth"),
     savingsPerMonth:numv("savingsPerMonth"),
     iskBalance:     numv("iskBalance"),
@@ -913,6 +922,26 @@ function syncBolan() {
   }
 }
 
+// Deltid efter frihet: visa till-ålder + en liten förklaring av nettoinkomsten.
+function updatePartTimeUI() {
+  const pct  = +($("partTimePct")?.value || 0);
+  const row  = $("partTimeUntilRow");
+  const hint = $("partTimeHint");
+  if (row) row.style.display = pct > 0 ? "" : "none";
+  if (!hint) return;
+  if (pct > 0) {
+    const grossY = numv("salary") * (pct / 100) * 12;
+    const netM   = Math.max(0, grossY - lonTax(grossY, +$("age").value)) / 12;
+    const until  = +($("partTimeUntil")?.value || 0);
+    hint.style.display = "";
+    hint.innerHTML = numv("salary") > 0
+      ? `Deltid ${pct} % ≈ <strong>${fmtKr(netM)}/mån</strong> netto fram till ${until} år — täcker en del av behovet, så du behöver mindre kapital.`
+      : `Ange din lön ovan så räknar vi ut hur mycket deltiden täcker.`;
+  } else {
+    hint.style.display = "none";
+  }
+}
+
 function recalc() {
   _glidbana = !!document.getElementById("glidbana")?.checked;
   _kommunalskatt = getKommunalskatt();
@@ -930,6 +959,7 @@ function recalc() {
   // ── Bolån: belåningsgrad-slidern styr kvarvarande lån; amortering autofylls med
   //    lagkravet (ordinarie belåningsgradskrav) om användaren inte skrivit eget. ──
   syncBolan();
+  updatePartTimeUI();
 
   const inputs = getInputs();
 
