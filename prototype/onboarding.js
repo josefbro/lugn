@@ -311,13 +311,32 @@ function skipOnboarding() {
   }, 300);
 }
 
-// ─── Visa igen (från hero-knapp) ──────────────────────────────────────────────
+// ─── Nollställ alla svar till ett rent utgångsläge ───────────────────────────
+function resetOnboardingState() {
+  // Töm svarsobjektet
+  Object.keys(answers).forEach(k => delete answers[k]);
+  // Avmarkera alla val
+  document.querySelectorAll("#obOverlay .selected")
+    .forEach(el => el.classList.remove("selected"));
+  // Återställ reglage till default
+  const ageEl = $ob("obAge"), retireEl = $ob("obRetire");
+  if (ageEl)    { ageEl.value = 35;    $ob("obAgeVal").textContent = "35 år"; }
+  if (retireEl) { retireEl.value = 55; $ob("obRetireVal").textContent = "55 år"; }
+  const goalsEl = $ob("obGoals");
+  if (goalsEl) goalsEl.value = "";
+  // Default-svar som setupListeners normalt sätter
+  answers.age = 35;
+  answers.retireAge = 55;
+}
+
+// ─── Visa igen (från hero-knapp eller reset-knapp) ───────────────────────────
 function showOnboarding() {
   localStorage.removeItem("lugn_onboarding_done");
   const overlay = $ob("obOverlay");
   if (!overlay) return;
-  overlay.style.display = "flex";
   if (!_listenersAttached) { setupListeners(); _listenersAttached = true; }
+  resetOnboardingState();
+  overlay.style.display = "flex";
   showStep(1);
   window.scrollTo({ top: 0 });
   // Visa hero igen

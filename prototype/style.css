@@ -1280,3 +1280,36 @@ footer {
   border-top: 1px solid var(--line);
 }
 footer small { color: var(--ink-400); font-size: 12px; line-height: 1.6; }
+
+/* === RESET-FAB (ta om onboarding) === */
+.reset-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cream-50);
+  background: var(--sage-700);
+  border: none;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(31,48,38,.28);
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.reset-fab:hover {
+  background: var(--sage-900);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(31,48,38,.34);
+}
+.reset-fab:active { transform: translateY(0); }
+.reset-fab-icon { font-size: 17px; line-height: 1; }
+
+@media (max-width: 560px) {
+  .reset-fab { right: 12px; bottom: 12px; padding: 10px 14px; font-size: 13px; }
+}
