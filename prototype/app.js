@@ -450,9 +450,17 @@ function drawAccumChart(flows, retireAge, mcData) {
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
-  const maxCap = mcData
-    ? Math.max(...mcData.map(d => d.p90), ...flows.map(f => f.totalCapital))
-    : Math.max(...flows.map(f => f.totalCapital));
+  // Kapa Y-skalan så medianen + nedsidan blir läsbar. p90-banorna växer
+  // exponentiellt över 55 år och skulle annars trycka ihop allt. Vi skalar
+  // till ~p75-nivå (max-median × 2,5) och klipper enstaka turbanor upptill.
+  let maxCap;
+  if (mcData) {
+    const maxMedian = Math.max(...mcData.map(d => d.p50), ...flows.map(f => f.totalCapital));
+    const maxP75    = Math.max(...mcData.map(d => d.p75));
+    maxCap = Math.min(maxP75, maxMedian * 2.5);
+  } else {
+    maxCap = Math.max(...flows.map(f => f.totalCapital));
+  }
   if (maxCap === 0) return;
 
   const xFor = age => padL + (age - age0) / (ageN - age0) * plotW;
