@@ -145,6 +145,11 @@ const PGI_CEILING_2026  = 625_500;   // 7,5 × IBB på pensionsunderlag
 const ALLMAN_RATE       = 0.185;     // 18,5%
 const DELNINGSTAL_65    = 16.0;      // ~vid 65 (varierar med födelseår/uttagsålder)
 const CAREER_START      = 23;
+// Löneväxling 2026: arbetsgivaravgift 31,42% vs särskild löneskatt 24,26% →
+// ~5,8% mer till pensionen. Golv 8,07 IBB = 56 087 kr/mån — lönen EFTER växling
+// får ej understiga det, annars tappas allmän pension + SGI (sjuk/föräldrapenning).
+const VAXLINGSFAKTOR    = 1.058;
+const LONEVAXLING_GOLV  = 56_087;    // kr/mån (8,07 IBB 2026)
 
 // Allmän pension/mån vid FULL karriär till 65 (för en given månadslön), dagens värde.
 function allmanAt65Full(monthlySalary) {
@@ -938,8 +943,9 @@ function getInputs() {
     depaBalance:    numv("depaBalance"),
     tjpPott:        numv("tjpPott"),
     tjpPeriod:      +$("tjpPeriod").value,
-    // TJP-avsättning: från avtal+lön om möjligt, annars manuellt fält
-    tjpContrib:     (tjpContribFromAvtal($("avtal")?.value || "ingen", numv("salary")) ?? numv("tjpContrib")),
+    // TJP-avsättning: avtals-avsättning på (skyddad) bruttolön + löneväxling × faktor.
+    tjpContrib:     (tjpContribFromAvtal($("avtal")?.value || "ingen", numv("salary")) ?? numv("tjpContrib"))
+                    + numv("loneVaxling") * VAXLINGSFAKTOR,
     avtal:          $("avtal")?.value || "ingen",
     allmanMonthly:  numv("allmanMonthly"),   // fältet är källa; lön för-ifyller det
     realReturn:     +$("realReturn").value,
@@ -1026,11 +1032,33 @@ function recalc() {
   if (krEl) krEl.textContent = `${(_kommunalskatt*100).toFixed(2)}% kommunalskatt`;
 
   // För-ifyll allmän pension från lön — VID VALD FRIHETSÅLDER (reducerad).
+  // Löneväxling sänker pensionsgrundande lön; allmanAt65Full takar vid 7,5 IBB så
+  // det påverkar bara om man växlar ner sig under taket (vilket man inte bör).
   const salaryVal = numv("salary");
+  const salaryEfterVaxling = Math.max(0, salaryVal - numv("loneVaxling"));
   const retireVal = +$("retire").value;
   const amField = $("allmanMonthly");
   if (amField && salaryVal > 0 && !amField._userEdited) {
-    setNumVal(amField, Math.round(allmanAt65Full(salaryVal) * allmanFactor(retireVal)));
+    setNumVal(amField, Math.round(allmanAt65Full(salaryEfterVaxling) * allmanFactor(retireVal)));
+  }
+
+  // Löneväxling-not: varna under golvet, annars visa nyttan.
+  const lvEl = $("loneVaxlingNote");
+  const lv = numv("loneVaxling");
+  if (lvEl) {
+    if (lv <= 0) {
+      lvEl.style.display = "none";
+    } else if (salaryEfterVaxling < LONEVAXLING_GOLV) {
+      lvEl.style.display = "";
+      lvEl.className = "field-note lv-warn";
+      lvEl.innerHTML = `⚠ Lön efter växling ${fmtKr(salaryEfterVaxling)}/mån är under golvet ${fmtKr(LONEVAXLING_GOLV)} (8,07 IBB) — du tappar allmän pension och sjuk-/föräldrapenning. Väx bara lön över golvet.`;
+    } else {
+      lvEl.style.display = "";
+      lvEl.className = "field-note";
+      const overBryt = salaryVal * 12 > BRYTPUNKT_ARBETANDE;
+      lvEl.innerHTML = `${fmtKr(lv)}/mån → ~${fmtKr(lv * VAXLINGSFAKTOR)}/mån till tjänstepension (×${VAXLINGSFAKTOR}).`
+        + (overBryt ? " Du slipper 20 % statlig skatt nu och betalar troligen lägre skatt som pensionär." : "");
+    }
   }
 
   // ── Bolån: belåningsgrad-slidern styr kvarvarande lån; amortering autofylls med

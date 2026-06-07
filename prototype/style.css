@@ -200,6 +200,7 @@ body {
   margin: -6px 0 6px;
   line-height: 1.4;
 }
+.field-note.lv-warn { color: var(--coral-600); font-weight: 500; }
 
 /* === TOGGLE-rad === */
 .toggle-label { align-items: center; }
