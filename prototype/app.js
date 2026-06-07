@@ -1680,6 +1680,84 @@ function runBacktest(inputs, allocWorld) {
            decumYears, firstY, lastY };
 }
 
+// Tillväxtserier (1 kr investerad 1970) i SEK för World, SIXRX och mix.
+function historySeries(allocWorld) {
+  const H = window.MARKET_HISTORY;
+  if (!H) return null;
+  const w = H.world.returns, s = H.sweden.returns, fx = H.usdSek.rates;
+  const worldSek = y => (w[y] == null || fx[y] == null || fx[y-1] == null)
+    ? null : (1 + w[y]) * (fx[y] / fx[y-1]) - 1;
+
+  let cw = 1, cs = 1, cb = 1;
+  const pts = [{ year: 1969, world: 1, sixrx: 1, blend: 1 }];
+  const rw = [], rs = [], rb = [];
+  for (let y = 1970; y <= 2025; y++) {
+    const ws = worldSek(y), ss = s[y];
+    if (ws == null || ss == null) continue;
+    const bb = allocWorld * ws + (1 - allocWorld) * ss;
+    cw *= (1 + ws); cs *= (1 + ss); cb *= (1 + bb);
+    rw.push(ws); rs.push(ss); rb.push(bb);
+    pts.push({ year: y, world: cw, sixrx: cs, blend: cb });
+  }
+  const n = rw.length;
+  const cagr = c => Math.pow(c, 1 / n) - 1;
+  return { pts, n,
+    cagrWorld: cagr(cw), cagrSixrx: cagr(cs), cagrBlend: cagr(cb) };
+}
+
+function renderHistoryChart(allocWorld) {
+  const c = document.getElementById("histChart");
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  const W = c.width, H = c.height;
+  ctx.clearRect(0, 0, W, H);
+  const data = historySeries(allocWorld);
+  if (!data) return;
+  const pts = data.pts;
+
+  const padL = 52, padR = 12, padT = 12, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const y0 = pts[0].year, y1 = pts[pts.length-1].year;
+  const maxV = Math.max(...pts.map(p => Math.max(p.world, p.sixrx, p.blend)));
+  // Log-skala (55 års tillväxt)
+  const logMax = Math.log10(maxV);
+  const xFor = yr => padL + (yr - y0) / (y1 - y0) * plotW;
+  const yFor = v => padT + plotH - (Math.log10(Math.max(1, v)) / logMax) * plotH;
+
+  // Gridlinjer vid 1, 10, 100, ...
+  ctx.font = "10px -apple-system, system-ui, sans-serif";
+  for (let p = 0; p <= Math.ceil(logMax); p++) {
+    const v = Math.pow(10, p), y = yFor(v);
+    ctx.strokeStyle = "#1a1a1a10";
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillStyle = "#8a8a8a"; ctx.textAlign = "right";
+    ctx.fillText(v >= 1000 ? (v/1000)+"k" : v+"×", padL - 4, y + 3);
+  }
+  // X-årtal
+  ctx.fillStyle = "#8a8a8a"; ctx.textAlign = "center";
+  for (let yr = 1970; yr <= 2025; yr += 10) ctx.fillText(yr, xFor(yr), H - padB + 16);
+
+  const line = (key, color, width) => {
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
+    pts.forEach((p, i) => { const x=xFor(p.year), y=yFor(p[key]);
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+    ctx.stroke(); ctx.lineWidth = 1;
+  };
+  line("sixrx", "#c46d4d", 1.8);   // SIXRX — koral
+  line("world", "#3a5a40", 1.8);   // MSCI World SEK — sage
+  line("blend", "#4a6b8a", 2.6);   // Din mix — blå, tjockare
+
+  // Snittavkastning per år
+  const avg = document.getElementById("histAvg");
+  if (avg) {
+    const f = x => (x*100).toFixed(1) + "%";
+    avg.innerHTML = `
+      <span class="ha"><span class="hd" style="background:#3a5a40"></span>MSCI World (SEK) <b>${f(data.cagrWorld)}/år</b></span>
+      <span class="ha"><span class="hd" style="background:#c46d4d"></span>SIXRX <b>${f(data.cagrSixrx)}/år</b></span>
+      <span class="ha"><span class="hd" style="background:#4a6b8a"></span>Din mix <b>${f(data.cagrBlend)}/år</b></span>`;
+  }
+}
+
 function renderBacktest() {
   const el = document.getElementById("backtestResult");
   if (!el) return;
@@ -1695,6 +1773,8 @@ function renderBacktest() {
   const cls = pct >= 90 ? "good" : pct >= 75 ? "ok" : "warn";
   const lbl = document.getElementById("allocLabel");
   if (lbl) lbl.textContent = `${Math.round(allocWorld*100)}% international / ${Math.round((1-allocWorld)*100)}% Sverige`;
+
+  renderHistoryChart(allocWorld);
 
   el.innerHTML = `
     <div class="bt-headline">

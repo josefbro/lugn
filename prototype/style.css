@@ -1041,6 +1041,17 @@ canvas {
   line-height: 1.55;
 }
 
+/* === HISTORY CHART === */
+.hist-chart-wrap { margin-top: 18px; }
+.hist-title { font-family: var(--serif); font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.hist-avg {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  margin-top: 10px; font-size: 13px; color: var(--ink-600);
+}
+.hist-avg .ha { display: flex; align-items: center; gap: 6px; }
+.hist-avg .hd { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+.hist-avg b { color: var(--ink-900); font-weight: 600; }
+
 /* === HISTORISK BACKTEST === */
 .bt-wrap {
   background: var(--cream-100);
