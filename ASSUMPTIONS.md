@@ -3,8 +3,26 @@
 Ärlig revision av varje antagande i modellen. Märkning:
 🟢 sunt · 🟡 förenklat (medvetet) · 🔴 inkonsekvens/issue att åtgärda
 
-Senast granskad: 2026-06-06 (Opus). Två buggar hittade & fixade under denna granskning
-(skiktgräns-indexering + pensionärs-grundavdrag — se #17–18).
+Senast granskad: 2026-06-06 (Opus).
+
+## Cash-flow-audit (mot finansiell-ingenjörs-checklista)
+
+Tre KRITISKA fel hittade & fixade i decumulation-loopen:
+
+| Fel | Vad var fel | Effekt | Fix |
+|---|---|---|---|
+| 🔴→🟢 **Skatt aldrig applicerad** | `tax` beräknades men lagrades bara, drogs aldrig från portfölj/inkomst | Schablon + pensionsskatt ignorerades helt | Schablon dras nu från balansen varje år; pension nettas |
+| 🔴→🟢 **Pension brutto mot efter-skatt-behov** | `need − pensionGross` istället för netto | Modellen tog ut 360 kr/mån när rätt var 8 943 — planer såg dramatiskt mer hållbara ut | Pension nettas av inkomstskatt före gap-beräkning |
+| 🔴→🟢 **Inget mid-year-antagande** | Sparande fick full årsavkastning, uttag förlorade hel årsavkastning | Överskattad ackumulering, för konservativ decumulation | Mid-year: halv årsavkastning före flöden, halv efter |
+
+**Checklista — verifierad:**
+1. ✅ Inflation: behov inflateras varje år (1,02²⁰ = 1,486 verifierat)
+2. ✅ Ordning: mid-year-konvention (annuity, ej due/ordinary-extrem)
+3. ✅ Compounding: månadsflöden får ~halvår avkastning (mid-year)
+4. ✅ Sequence risk: MC med mean + σ + Student-t fat tails (ej platt snitt)
+
+**Oberoende re-implementation matchar `simulate()` exakt till kronan.**
+Depå-uttag grossas upp för 30% reavinst (antagen 50% vinstandel — #21b).
 
 ---
 

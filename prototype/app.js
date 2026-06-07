@@ -141,6 +141,7 @@ let _glidbana = false;   // sätts av toggle i avancerat
 const PREMIE_SHARE   = 2.5 / 18.5;   // ≈ 13,5% av allmän pension
 const INKOMST_SHARE  = 16  / 18.5;   // ≈ 86,5%
 const ALLMAN_EARLIEST = 63;          // lägsta uttagsålder allmän pension (2026)
+const DEPA_GAIN_FRAC  = 0.5;         // antagen vinstandel vid depå-uttag (för 30% reavinst)
 
 // Tidigt uttag av allmän pension före 65 ger livsvarigt lägre belopp
 // (~7% per år tidigare — högre delningstal).
@@ -197,7 +198,7 @@ function simulate(inputs, opts = {}) {
     const needAnnual = needPerMonth * 12 * Math.pow(1 + inf, i);
     const inAccum    = a < retire;
 
-    // Pension i tre delar med egna startåldrar (nominellt vid ålder a)
+    // Pension i tre delar med egna startåldrar (BRUTTO, nominellt vid ålder a)
     const inflAdj = Math.pow(1 + inf, i);
     let tjpInc = 0, premieInc = 0, inkomstInc = 0;
     if (a >= tjpStart && (tjpPeriod < 0 || a < tjpStart + tjpPeriod))
@@ -208,33 +209,57 @@ function simulate(inputs, opts = {}) {
     }
     const pensionGross = tjpInc + premieInc + inkomstInc;
 
-    let bridgeDraw = 0, tax = 0;
+    // Mid-year-konvention: halv årsavkastning före flöden, halv efter.
+    const g = Math.sqrt(1 + nom);
+    isk *= g; kf *= g; depa *= g;
+
+    let bridgeDraw = 0, tax = 0, pensionNet = pensionGross;
 
     if (!inAccum) {
+      // Pension beskattas som inkomst → netto täcker det efter-skatt-behovet.
+      const pensionTax = lonTax(pensionGross, a);
+      pensionNet = pensionGross - pensionTax;
       const sideIncome = a < sideUntilAge ? needAnnual * sideRatio : 0;
-      let still = needAnnual - pensionGross - sideIncome;
+      let still = needAnnual - pensionNet - sideIncome;   // återstående efter-skatt-gap
+
       if (still > 0) {
-        const fd = Math.min(still, depa); depa -= fd; still -= fd; bridgeDraw += fd;
-        const fi = Math.min(still, isk);  isk  -= fi; still -= fi; bridgeDraw += fi;
-        const fk = Math.min(still, kf);   kf   -= fk; still -= fk; bridgeDraw += fk;
+        // Skatteeffektiv ordning: ISK → KF (skattefria uttag) → depå (30% på vinst).
+        const fi = Math.min(still, isk); isk -= fi; still -= fi; bridgeDraw += fi;
+        const fk = Math.min(still, kf);  kf  -= fk; still -= fk; bridgeDraw += fk;
+        if (still > 0 && depa > 0) {
+          // Depå: brutto-uppräkning för 30% reavinst på vinstandelen.
+          const grossUp = 1 / (1 - 0.30 * DEPA_GAIN_FRAC);
+          const want = still * grossUp;
+          const fd = Math.min(want, depa); depa -= fd;
+          const net = fd / grossUp; still -= net; bridgeDraw += fd;
+        }
         if (still > 1) ran_dry = true;
       }
       bridgeUsed += bridgeDraw;
-      tax += lonTax(pensionGross, a) + iskTax(isk, kf) + iskTax(kf, isk);
+      tax += pensionTax;
     } else {
-      isk += savingsPerMonth * 12 * Math.pow(1 + inf, i);
-      tax += iskTax(isk, kf) + iskTax(kf, isk);
+      isk += savingsPerMonth * 12 * inflAdj;   // sparande vid mid-year
     }
 
-    isk  *= 1 + nom;
-    kf   *= 1 + nom;
-    depa *= 1 + nom;
+    // Andra halvårets avkastning
+    isk *= g; kf *= g; depa *= g;
+
+    // Årlig ISK/KF-schablon — dras FAKTISKT från balansen (verklig kostnad).
+    const schISK = iskTax(isk, kf);
+    const schKF  = iskTax(kf, isk);
+    isk -= schISK; kf -= schKF;
+    tax += schISK + schKF;
+
+    // Netto-pensionskomponenter (för stackad graf mot efter-skatt-behov)
+    const netScale = pensionGross > 0 ? pensionNet / pensionGross : 1;
 
     flows.push({
       age: a,
       need: inAccum ? 0 : needAnnual,
-      pensionGross,
-      tjpInc, premieInc, inkomstInc,
+      pensionGross, pensionNet,
+      tjpInc: tjpInc * netScale,
+      premieInc: premieInc * netScale,
+      inkomstInc: inkomstInc * netScale,
       bridgeDraw,
       tax,
       totalCapital: isk + kf + depa,
