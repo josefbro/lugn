@@ -1,7 +1,11 @@
-// Historisk årsavkastning — VERIFIERAD data (nominell, brutto inkl. utdelningar).
-// Källa MSCI World + MSCI World ex-USA: Wikipedia / upmyinterest.com (USD, gross TR).
-// OBS: nominell USD. Backtest-motorn deflaterar med användarens inflationsantagande.
-// Svensk SIXRX-serie saknas än (chart-/bot-låst på källor) — se ASSUMPTIONS.md.
+// Historisk årsavkastning — VERIFIERAD data. ALLA serier är TOTAL RETURN
+// (inkl. återinvesterade utdelningar), nominell.
+//   MSCI World: Gross Total Return, USD ("total returns including reinvested
+//     dividends" — bekräftat Wikipedia). 1970–2025.
+//   MSCI World ex-USA: gross TR, USD (upmyinterest). 1970–2025.
+//   Sverige SIXRX: SIX Return Index, SEK inkl utdelningar (RikaTillsammans). 1900–2024.
+//     (2025 ej publicerat i källan än per juni 2026 — läggs till när verifierat.)
+// OBS: nominell. Backtest-motorn deflaterar med användarens inflationsantagande.
 
 window.MARKET_HISTORY = {
   // MSCI World (global, inkl USA) — gross USD, 1970–2025
