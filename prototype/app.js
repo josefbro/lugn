@@ -249,7 +249,8 @@ function simulate(inputs, opts = {}) {
           tjpPott, tjpPeriod, allmanMonthly, tjpContrib = 0, avtal = "ingen",
           realReturn, inflation,
           loanBalance = 0, loanRate = 0, loanAmort = 0,
-          sideIncomeAnnual = 0, partTimeUntilAge = 0 } = inputs;
+          sideIncomeAnnual = 0, partTimeUntilAge = 0,
+          bigExpenses = [] } = inputs;
 
   const retOverride  = opts.returnOverride;    // array[i] eller undefined
 
@@ -363,6 +364,18 @@ function simulate(inputs, opts = {}) {
 
     // Andra halvårets avkastning
     isk *= g; kf *= g; depa *= g;
+
+    // Större engångsutgifter detta år (bröllop, bil, renovering…) — dras som
+    // klumpsumma ur portföljen (ISK → KF → depå). Dagens värde, inflationsjusterat.
+    let bigExpYear = 0;
+    for (const e of bigExpenses) if (e.age === a) bigExpYear += e.amount;
+    if (bigExpYear > 0) {
+      let want = bigExpYear * inflAdj;
+      const xi = Math.min(want, isk); isk -= xi; want -= xi;
+      const xk = Math.min(want, kf);  kf  -= xk; want -= xk;
+      const xd = Math.min(want, depa); depa -= xd; want -= xd;
+      if (want > 1) ran_dry = true;   // hade inte råd med utgiften
+    }
 
     // Årlig ISK/KF-schablon — dras FAKTISKT från balansen (verklig kostnad).
     const schISK = iskTax(isk, kf);
@@ -935,7 +948,17 @@ function getInputs() {
     loanRate:       +($("loanRate")?.value || 0),
     loanAmort:      numv("loanAmort"),
     propertyValue:  numv("propertyValue"),
+    bigExpenses:    readBigExpenses(),
   };
+}
+
+// Läs större engångsutgifter från raderna i inmatningen.
+function readBigExpenses() {
+  return [...document.querySelectorAll(".bigexp-row")].map(r => ({
+    label:  r.querySelector(".bigexp-label")?.value || "",
+    amount: numv(r.querySelector(".bigexp-amount")),
+    age:    +(r.querySelector(".bigexp-age")?.value || 0),
+  })).filter(e => e.amount > 0 && e.age > 0);
 }
 
 // Lagstadgat amorteringskrav (lag 2026:226, från 1 april 2026). Endast belånings-
@@ -2426,6 +2449,27 @@ document.querySelectorAll("input, select").forEach(el => {
 document.querySelector(".deepdive")?.addEventListener("toggle", (e) => {
   if (e.target.open) { renderBacktest(); updateIskAfComparison(); }
 });
+
+// Större framtida utgifter: dynamiska rader (etikett, belopp, ålder)
+function addBigExpRow(label = "", amount = "", age = "") {
+  const list = $("bigExpList");
+  if (!list) return;
+  const row = document.createElement("div");
+  row.className = "bigexp-row";
+  row.innerHTML = `
+    <input type="text" class="bigexp-label" placeholder="t.ex. barnens bröllop" value="${label}">
+    <input type="text" inputmode="numeric" class="bigexp-amount" placeholder="kr" value="${amount}">
+    <input type="number" class="bigexp-age" placeholder="ålder" min="${+$("age").value}" max="100" value="${age}">
+    <button type="button" class="bigexp-del" title="Ta bort">×</button>`;
+  list.appendChild(row);
+  // wire: format belopp, recalc på ändring, ta bort
+  const amt = row.querySelector(".bigexp-amount");
+  amt.addEventListener("input", () => { formatNumInput(amt); recalc(); });
+  row.querySelector(".bigexp-label").addEventListener("input", recalc);
+  row.querySelector(".bigexp-age").addEventListener("input", recalc);
+  row.querySelector(".bigexp-del").addEventListener("click", () => { row.remove(); recalc(); });
+}
+$("bigExpAdd")?.addEventListener("click", () => addBigExpRow());
 
 // Bolån: tvåvägs-synk slider ↔ lån, + manuell amortering låser autofyllet
 $("ltvSlider")?.addEventListener("input", () => { _bolanSource = "ltv"; recalc(); });

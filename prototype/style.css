@@ -427,6 +427,27 @@ body {
 }
 .need-hint { font-size: 12px; color: var(--ink-400); margin: 8px 0 0; }
 
+/* Större framtida utgifter — dynamiska rader */
+.bigexp-row { display: grid; grid-template-columns: 1fr 90px 64px 28px; gap: 6px; margin-bottom: 8px; align-items: center; }
+.bigexp-row input {
+  width: 100%; min-width: 0; padding: 8px 9px;
+  border: 1px solid var(--line); border-radius: 6px;
+  font-size: 14px; font-family: var(--sans); background: #fff;
+}
+.bigexp-row .bigexp-amount, .bigexp-row .bigexp-age { text-align: right; }
+.bigexp-del {
+  border: none; background: none; cursor: pointer;
+  font-size: 20px; line-height: 1; color: var(--ink-400);
+  padding: 0; border-radius: 6px;
+}
+.bigexp-del:hover { color: var(--coral-600); }
+.bigexp-add {
+  background: none; border: 1px dashed var(--line); color: var(--sage-700);
+  border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13px;
+  font-family: var(--sans); cursor: pointer; margin-top: 2px;
+}
+.bigexp-add:hover { border-color: var(--sage-700); background: var(--cream-100); }
+
 /* === PERSON-CENTRERAT SVAR === */
 .answer-hero {
   background: linear-gradient(135deg, var(--sage-900), #2d5016);
