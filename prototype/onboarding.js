@@ -11,15 +11,22 @@ let _listenersAttached = false;
 
 const $ob = id => document.getElementById(id);
 
+// Markera när overlayen är öppen (döljer reset-FAB så den inte krockar med Nästa)
+function setObActive(on) {
+  document.body.classList.toggle("ob-active", !!on);
+}
+
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 function initOnboarding() {
   const overlay = $ob("obOverlay");
   if (!overlay) return;
   if (localStorage.getItem("lugn_onboarding_done")) {
     overlay.style.display = "none";
+    setObActive(false);
     return;
   }
   overlay.style.display = "flex";
+  setObActive(true);
   if (!_listenersAttached) { setupListeners(); _listenersAttached = true; }
   showStep(1);
 }
@@ -292,6 +299,7 @@ function startComputing() {
     setTimeout(() => {
       overlay.style.display = "none";
       overlay.classList.remove("hiding");
+      setObActive(false);
       const kalk = document.getElementById("kalkylator");
       if (kalk) kalk.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 500);
@@ -306,6 +314,7 @@ function skipOnboarding() {
   setTimeout(() => {
     overlay.style.display = "none";
     overlay.classList.remove("hiding");
+    setObActive(false);
     const kalk = document.getElementById("kalkylator");
     if (kalk) kalk.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 300);
@@ -337,6 +346,7 @@ function showOnboarding() {
   if (!_listenersAttached) { setupListeners(); _listenersAttached = true; }
   resetOnboardingState();
   overlay.style.display = "flex";
+  setObActive(true);
   showStep(1);
   window.scrollTo({ top: 0 });
   // Visa hero igen
