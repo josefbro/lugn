@@ -1052,8 +1052,20 @@ canvas {
 .hist-avg .hd { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
 .hist-avg b { color: var(--ink-900); font-weight: 600; }
 .hist-avg .hsig { color: var(--ink-400); font-size: 12px; }
-.minvar-tag { background: rgba(58,90,64,.12); color: var(--sage-700); font-size: 11px; padding: 1px 7px; border-radius: 99px; }
-.minvar-link { color: var(--sage-700); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.alloc-optim { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; margin: 8px 0 4px; }
+.optim-chip {
+  font-size: 12px; padding: 5px 12px; border-radius: 99px;
+  background: var(--cream-50); border: 1px solid var(--line);
+  color: var(--sage-700); cursor: pointer; font-family: var(--sans); font-weight: 500;
+}
+.optim-chip:hover { border-color: var(--sage-700); }
+.optim-hint { font-size: 11px; color: var(--ink-400); }
+.homebias-note { margin: 8px 0 14px; font-size: 13px; }
+.homebias-note summary { cursor: pointer; color: var(--sage-700); font-weight: 500; }
+.homebias-note p, .homebias-note ul { color: var(--ink-600); line-height: 1.55; margin: 8px 0; }
+.homebias-note ul { padding-left: 18px; }
+.homebias-note li { margin: 4px 0; }
+.homebias-note a { color: var(--sage-700); }
 
 /* === HISTORISK BACKTEST === */
 .bt-wrap {

@@ -1702,7 +1702,14 @@ function marketStats() {
   // Minsta-varians-vikt på World: w* = (σs² − cov) / (σw² + σs² − 2cov)
   let wmv = (ss*ss - cov) / (sw*sw + ss*ss - 2*cov);
   wmv = Math.max(0, Math.min(1, wmv));
-  _marketStats = { sigmaWorld: sw, sigmaSwe: ss, cov, rho, minVarAlloc: wmv };
+  // Max-Sharpe (tangering, rf=0): bästa avkastning per risk. Bygger på historisk
+  // avkastning → bräcklig (Felix: past returns predict little). Visas med brasklapp.
+  const num = ma*ss*ss - mb*cov;
+  const den = ma*ss*ss + mb*sw*sw - (ma+mb)*cov;
+  let wms = den !== 0 ? num/den : 1;
+  wms = Math.max(0, Math.min(1, wms));
+  _marketStats = { sigmaWorld: sw, sigmaSwe: ss, cov, rho,
+                   meanWorld: ma, meanSwe: mb, minVarAlloc: wmv, maxSharpeAlloc: wms };
   return _marketStats;
 }
 
@@ -1807,15 +1814,20 @@ function renderBacktest() {
   const cls = pct >= 90 ? "good" : pct >= 75 ? "ok" : "warn";
   const lbl = document.getElementById("allocLabel");
   const ms = marketStats();
-  if (lbl) {
-    const atMinVar = ms && Math.abs(allocWorld - ms.minVarAlloc) < 0.03;
-    lbl.innerHTML = `${Math.round(allocWorld*100)}% international / ${Math.round((1-allocWorld)*100)}% Sverige`
-      + (atMinVar ? ` <span class="minvar-tag">lägst risk</span>` : (ms ? ` · <a class="minvar-link" id="minVarLink">lägst risk vid ${Math.round(ms.minVarAlloc*100)}%</a>` : ""));
-    const ml = document.getElementById("minVarLink");
-    if (ml) ml.onclick = () => {
-      const as = document.getElementById("allocSlider");
-      as.value = Math.round(ms.minVarAlloc*100); as._userMoved = true; renderBacktest();
-    };
+  if (lbl) lbl.textContent = `${Math.round(allocWorld*100)}% international / ${Math.round((1-allocWorld)*100)}% Sverige`;
+
+  // Optimeringspunkter: min-varians + max-Sharpe (klickbara)
+  const optim = document.getElementById("allocOptim");
+  if (optim && ms) {
+    const setAlloc = w => { const as = document.getElementById("allocSlider");
+      as.value = Math.round(w*100); as._userMoved = true; renderBacktest(); };
+    const mvW = Math.round(ms.minVarAlloc*100), msW = Math.round(ms.maxSharpeAlloc*100);
+    optim.innerHTML =
+      `<button class="optim-chip" id="optMinVar">Lägst risk: ${mvW}/${100-mvW}</button>` +
+      `<button class="optim-chip" id="optMaxSharpe">Bäst risk/avkastning: ${msW}/${100-msW}</button>` +
+      `<span class="optim-hint">(international/Sverige)</span>`;
+    document.getElementById("optMinVar").onclick   = () => setAlloc(ms.minVarAlloc);
+    document.getElementById("optMaxSharpe").onclick = () => setAlloc(ms.maxSharpeAlloc);
   }
 
   renderHistoryChart(allocWorld);
@@ -2054,10 +2066,11 @@ $("allmanMonthly")?.addEventListener("input", () => {
 
 window.addEventListener("DOMContentLoaded", () => {
   populateKommunList();
-  // Sätt allokerings-slidern till minsta-varians-portföljen som default
+  // Default = max-Sharpe (bästa risk/avkastning, ~i linje med forskningens
+  // hemmamarknads-bias) snarare än min-variansens hörnlösning.
   const as = document.getElementById("allocSlider");
   const ms = marketStats();
-  if (as && ms && !as._userMoved) as.value = Math.round(ms.minVarAlloc * 100);
+  if (as && ms && !as._userMoved) as.value = Math.round(ms.maxSharpeAlloc * 100);
   setupLifestyleChips();
   setupShockChips();
   applyOnboardingAnswers();

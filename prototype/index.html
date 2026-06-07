@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=19">
-<link rel="stylesheet" href="onboarding.css?v=19">
+<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="onboarding.css?v=20">
 </head>
 <body>
 
@@ -586,6 +586,18 @@
               <span class="alloc-end">Sverige<br><small>SIXRX</small></span>
             </div>
             <div class="alloc-current" id="allocLabel">100% international</div>
+            <div class="alloc-optim" id="allocOptim"></div>
+            <details class="homebias-note">
+              <summary>Varför ändå en del Sverige? (forskning)</summary>
+              <p>Min-varians pekar här på 100% global eftersom svenska börsen är ovanligt <strong>koncentrerad och volatil</strong> (σ 25% vs 18%) — och i historien har dollarn dämpat globala fall i SEK. Men det är bakåtblickande och ignorerar avkastning.</p>
+              <p>Forskning (<a href="https://rationalreminder.ca/blog/2019/12/5/for-investors-a-little-home-country-bias-goes-a-long-way" target="_blank">Felix/Rational Reminder</a>, Vanguard, Franklin Templeton) stödjer ändå <strong>~25–40% hemmamarknad</strong> av strukturella skäl som inte hänger på historiska siffror:</p>
+              <ul>
+                <li><strong>Valutamatchning:</strong> du spenderar i SEK som pensionär — svenska aktier matchar dina utgifter, utländska bär valutarisk.</li>
+                <li><strong>Lägre kostnader & skatt:</strong> ingen utländsk källskatt, billigare via ISK.</li>
+                <li><strong>Diversifiering:</strong> korrelationen är 0,75 (ej 1) — precis din poäng. Vanguard finner att volatiliteten faktiskt <em>ökar</em> över ~70% utländskt.</li>
+              </ul>
+              <p>Slutsats: ren min-varians på denna data ger ett hörn (100% global), men en evidensbaserad svensk-anpassad mix är snarare <strong>~20–40% Sverige</strong>.</p>
+            </details>
             <div id="backtestResult"></div>
 
             <!-- Tillväxtgraf 1 kr 1970→2025 -->
@@ -689,9 +701,9 @@
 </footer>
 
 <datalist id="kommunList"></datalist>
-<script src="kommunalskatt.js?v=19"></script>
-<script src="market_history.js?v=19"></script>
-<script src="onboarding.js?v=19"></script>
-<script src="app.js?v=19"></script>
+<script src="kommunalskatt.js?v=20"></script>
+<script src="market_history.js?v=20"></script>
+<script src="onboarding.js?v=20"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>
