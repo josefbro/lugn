@@ -89,16 +89,20 @@ function tjpPayout(pott, period) {
 // 7,5 IBB / 12 = 52 125 kr/mån (2026). Tidigast uttag 55 (planeras höjas).
 const TJP_THRESHOLD_MONTH = 7.5 * 83_400 / 12;   // 52 125 kr/mån 2026
 
+// Premiebestämda avtal (alla födda efter 1980). startAge/endAge = intjänandefönster.
+// earliest = tidigaste uttagsålder. Verifierat 2026: avtalat.se, Pensionsmynd., minPension.
 const AVTAL = {
-  itp1:   { namn: "ITP1 — privat tjänsteman (1979+)", low: 0.045, high: 0.30,  earliest: 55 },
-  itp2:   { namn: "ITP2 — privat tjänsteman (före 1979)", low: 0.045, high: 0.30, earliest: 55,
+  itp1:   { namn: "ITP1 — privat tjänsteman (1979+)", low: 0.045, high: 0.30,  earliest: 55, startAge: 25, endAge: 66 },
+  saflo:  { namn: "SAF-LO — privat arbetare (LO)",     low: 0.045, high: 0.30,  earliest: 55, startAge: 22, endAge: 65 },
+  akapkr: { namn: "AKAP-KR — kommun/region",           low: 0.06,  high: 0.315, earliest: 62, startAge: 22, endAge: 69,
+            note: "Uttag tidigast 62 (nytt 2026). Avsättning oavsett ålder, till 69." },
+  pa16:   { namn: "PA16 — statligt anställd (1988+)",   low: 0.061, high: 0.316, earliest: 61, startAge: 23, endAge: 69,
+            note: "Avd 1: ~6,1% (→6,2% okt 2026) + Kåpan Flex. Uttag tidigast 61." },
+  itp2:   { namn: "ITP2 — privat tjänsteman (före 1979)", low: 0.045, high: 0.30, earliest: 55, startAge: 28, endAge: 65,
             note: "Förmånsbestämd grunddel (ofta från 65) + premiebestämd ITPK." },
-  saflo:  { namn: "SAF-LO — privat arbetare (LO)", low: 0.045, high: 0.30, earliest: 55 },
-  akapkr: { namn: "AKAP-KR — kommun/region", low: 0.06, high: 0.315, earliest: 55 },
-  kapkl:  { namn: "KAP-KL — kommun/region (äldre)", low: 0.045, high: 0.30, earliest: 55 },
-  pa16:   { namn: "PA16 — statligt anställd", low: 0.061, high: 0.316, earliest: 55 },
-  egen:   { namn: "Eget AB / direktpension", low: 0, high: 0, earliest: 55, custom: true },
-  ingen:  { namn: "Vet ej / ingen", low: 0, high: 0, earliest: 55, custom: true },
+  kapkl:  { namn: "KAP-KL — kommun/region (äldre)",     low: 0.045, high: 0.30,  earliest: 55, startAge: 21, endAge: 67 },
+  egen:   { namn: "Eget AB / direktpension",            low: 0, high: 0, earliest: 55, custom: true },
+  ingen:  { namn: "Vet ej / ingen",                    low: 0, high: 0, earliest: 55, custom: true },
 };
 
 // Månatlig TJP-avsättning från lön enligt valt avtal.
@@ -172,9 +176,13 @@ function simulate(inputs, opts = {}) {
   const allmanStart = Math.max(retire, ALLMAN_EARLIEST);
 
   // TJP-potten växer till FAKTISK startålder (tidigare uttag = mindre pott).
+  // Avsättningar görs bara inom avtalets intjänandefönster (start- till slutålder).
+  const avtalDef  = AVTAL[avtal] || {};
+  const contStart = Math.max(age, avtalDef.startAge ?? 22);
+  const contEnd   = Math.min(retire, avtalDef.endAge ?? 65);
   const yearsToTjpStart = Math.max(0, tjpStart - age);
   let tjpContribFV = 0;
-  for (let a2 = age; a2 < retire && a2 < tjpStart; a2++) {
+  for (let a2 = contStart; a2 < contEnd && a2 < tjpStart; a2++) {
     tjpContribFV += tjpContrib * 12 * Math.pow(1.04, tjpStart - a2);
   }
   const tjpPottStart = tjpPott * Math.pow(1.04, yearsToTjpStart) + tjpContribFV;

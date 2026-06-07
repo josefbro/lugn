@@ -112,19 +112,33 @@ Matas till bygg-agenter för att eliminera hallucination. Verifiera siffror årl
 - **Brytpunkt:** 7,5 IBB = 625 500 kr/år = **52 125 kr/mån** (2026)
 - **Avsättning:** låg andel på lön ≤7,5 IBB, hög andel på lönedelar däröver
 
-| Avtal | Vem | ≤7,5 IBB | >7,5 IBB | Tidigast uttag |
-|---|---|---|---|---|
-| **ITP1** | Privata tjänstemän (1979+) | 4,5% | 30% | 55 |
-| **ITP2** | Privata tjänstemän (före 1979) | förmånsbest. + ITPK | — | 55/65 |
-| **SAF-LO** | Privata arbetare (LO) | 4,5% | 30% | 55 |
-| **AKAP-KR** | Kommun/region | 6% | 31,5% | 55 |
-| **KAP-KL** | Kommun/region (äldre) | 4,5% | 30% | 55 |
-| **PA16** | Statligt anställda | 6,1% | 31,6% | 55 |
+| Avtal | Vem | ≤7,5 IBB | >7,5 IBB | Intjänande­fönster | Tidigast uttag |
+|---|---|---|---|---|---|
+| **ITP1** | Privata tjänstemän (1979+) | 4,5% | 30% | 25→66 | 55 |
+| **SAF-LO** | Privata arbetare (LO) | 4,5% | 30% | 22→65 | 55 |
+| **AKAP-KR** | Kommun/region | 6% | 31,5% | 22→69 | **62** |
+| **PA16** Avd 1 | Statligt anställda (1988+) | 6,1%* | 31,6% | 23→69 | **61** |
+| **ITP2** | Privata tjänstemän (före 1979) | förmånsbest. + ITPK | — | 28→65 | 55/65 |
+| **KAP-KL** | Kommun/region (äldre) | 4,5% | 30% | 21→67 | 55 |
 
-- **Tidigast uttag 55** för premiebestämda delar (planeras höjas mot riktålder).
-- **Lugn:** användaren väljer avtal → avsättning räknas från lön → växer potten
-  medan man jobbar. Verifierat: ITP1 @70k = 7 708 kr/mån, AKAP-KR @70k = 8 758.
-- Källor: SKR, Pensionsmyndigheten (PA16), Collectum (ITP), Fora (SAF-LO).
+\* PA16 Avd 1 höjs **6,1% → 6,2%** okt 2026 (+ Kåpan Flex 0,6–1,6%).
+
+**Födda efter 1980 — allt premiebestämt (verifierat 2026):**
+- **ITP1** (Collectum): avsättning från **25 års ålder**, avgift 0,55%, gäller födda 1979+.
+- **SAF-LO** (Fora): avsättning från **22 års ålder** (sänkt från 25 jan 2023).
+- **AKAP-KR** (SKR/KÅPAN): avsättning **oavsett ålder** upp till 69 (LAS-åldern);
+  tidigaste uttag höjt till **62 år från 2026** (gäller födda 1958+).
+- **PA16 Avd 1** (SPV/Kåpan): avsättning från **23 år** till 69; tidigaste uttag **61 år**
+  (gäller fullt ut födda 1988+). Premiebestämd ersatte förmånsbestämda PA03.
+- **Tidigast uttag 55** gäller fortfarande ITP1/SAF-LO/ITP2/KAP-KL; AKAP-KR & PA16 är
+  undantag (62/61). Allmän pension separat (tidigast 63 år 2026).
+- **Lugn-modellen:** `AVTAL[avtal]` har `low/high/earliest/startAge/endAge`. simulate()
+  ackumulerar avsättningar bara inom `[max(age,startAge), min(retire,endAge))` och växer
+  potten till faktisk uttagsålder = `max(retire, earliest)`. För 35+ användare ligger
+  startAge i det förflutna, så fönstret = anställningstiden; relevansen är störst för unga.
+  Verifierat: ITP1 @70k = 7 708 kr/mån, AKAP-KR @70k = 8 758; AKAP-KR @45k → hint
+  "2 700 kr/mån · tidigast uttag 62 år".
+- Källor: Collectum (ITP1/2), Fora (SAF-LO), SKR/KÅPAN (AKAP-KR), SPV/Pensionsmynd. (PA16).
 
 ### Skatteverket API (Fas 2)
 - Inkomstdeklaration 1 API — https://www.skatteverket.se/omoss/digitalasamarbeten...
