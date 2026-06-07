@@ -357,9 +357,13 @@ function runMonteCarlo(inputs, opts = {}) {
   };
 }
 
-// ─── Tier-system ─────────────────────────────────────────────────────────────
+// ─── Tier-system (internt) ───────────────────────────────────────────────────
+// Livsstils-nivåerna visas inte längre i UI:t (förvirrande efter att behovet blev
+// ett enda kr/mån-fält). De finns kvar internt: "fire" = 25× (4%-regeln) används
+// som "på spår"-definition. Planens robusthet mäts mot en enda tröskel: 80 %.
 const TIER_MULTIPLE = { coast: 0, barista: 10, lean: 17, fire: 25, fat: 33 };
 const TIER_ORDER    = ["coast", "barista", "lean", "fire", "fat"];
+const ROBUST_SR     = 0.80;   // sannolikhetströskel för en robust plan
 
 const TIER_LIFESTYLE = {
   coast:   { sideIncomeRatio: 1.0, untilAge: 65, minSuccessRate: 0.70,
@@ -696,16 +700,16 @@ function drawBridgeChart(flows, retireAge) {
 // ─── Plan summary ────────────────────────────────────────────────────────────
 const TIER_NAMES = { coast:"Coast FI", barista:"Barista FIRE", lean:"Lean FIRE", fire:"FIRE", fat:"Fat FIRE" };
 
-function updatePlanSummary(inputs, tier, successRate) {
+function updatePlanSummary(inputs, successRate) {
   const el = $("planSummaryText");
   if (!el) return;
-  const tierName = TIER_NAMES[tier] || tier;
-  const minSr    = TIER_LIFESTYLE[tier]?.minSuccessRate ?? 0.80;
-  const sr       = successRate;
+  const minSr  = ROBUST_SR;
+  const sr     = successRate;
+  const need   = fmtKr(inputs.needPerMonth);
 
   if (sr === null) {
     // Före MC är klart — visa det vi vet
-    el.innerHTML = `Din plan siktar på <strong>${tierName}</strong> vid <strong>${inputs.retire} år</strong>. Beräknar sannolikhet…`;
+    el.innerHTML = `Din plan: <strong>${need}/mån</strong> från <strong>${inputs.retire} år</strong>. Beräknar sannolikhet…`;
     return;
   }
 
@@ -719,18 +723,18 @@ function updatePlanSummary(inputs, tier, successRate) {
   if (gap >= 0.05) {
     el.innerHTML = `
       <span class="ps-good">✓ Din plan håller.</span>
-      ${tierName} vid ${inputs.retire} år med <strong>${srPct}%</strong> sannolikhet — ${srPct - minPct} pp över gränsen för en robust plan.`;
+      ${need}/mån från ${inputs.retire} år med <strong>${srPct}%</strong> sannolikhet — ${srPct - minPct} pp över gränsen för en robust plan.`;
   } else if (gap >= 0) {
     el.innerHTML = `
       <span class="ps-good">✓ Planen fungerar</span>, men med snäva marginaler.
-      ${tierName} vid ${inputs.retire} år — ${srPct}% sannolikhet (målet är ≥${minPct}%).`;
+      ${need}/mån från ${inputs.retire} år — ${srPct}% sannolikhet (målet är ≥${minPct}%).`;
   } else {
     const fixText = needed
       ? `Flytta pension till <strong>${needed} år</strong> eller öka sparandet.`
-      : `Öka sparandet eller senarelägger pensionen.`;
+      : `Öka sparandet eller senarelägg pensionen.`;
     el.innerHTML = `
       <span class="ps-warn">⚠ Planen behöver justeras.</span>
-      ${srPct}% sannolikhet — ${tierName} kräver ≥${minPct}%. ${fixText}`;
+      ${srPct}% sannolikhet — en robust plan vill ha ≥${minPct}%. ${fixText}`;
   }
 }
 
@@ -903,43 +907,10 @@ function recalc() {
   _lastTier = currentTier;
 
   // Uppdatera "Din plan i ett nötskal" — preliminärt tills MC är klart
-  updatePlanSummary(inputs, currentTier, null);
+  updatePlanSummary(inputs, null);
 
-  // Beräkna earliest per tier
-  const earliestByTier = {};
-  TIER_ORDER.forEach(t => { earliestByTier[t] = earliestAgeForTier(inputs, t); });
-
-  document.querySelectorAll(".tier").forEach(t => {
-    const tier    = t.dataset.tier;
-    const earliest = earliestByTier[tier];
-    const ageEl   = t.querySelector(".tier-age");
-    if (earliest === null) {
-      ageEl.textContent = "ej nåbart";
-      t.classList.add("unreachable");
-    } else {
-      ageEl.textContent = `${earliest} år`;
-      t.classList.remove("unreachable");
-    }
-    t.classList.toggle("active", tier === currentTier && !activeTier);
-    t.classList.toggle("selected", tier === activeTier);
-  });
-
-  const displayedTier = activeTier || currentTier;
-  $("fireTier").textContent = displayedTier[0].toUpperCase() + displayedTier.slice(1);
-
-  const noteEl = $("tierNote");
-  if (noteEl) noteEl.textContent = TIER_LIFESTYLE[displayedTier].note;
-
-  // Delta-text
-  const deltaEl = $("tiersDelta");
-  const earliest = earliestByTier[currentTier];
-  if (!activeTier && earliest !== null && earliest < inputs.retire) {
-    deltaEl.textContent = `Du kan nå ${currentTier} redan vid ${earliest} år — ${inputs.retire - earliest} år tidigare`;
-  } else if (activeTier) {
-    deltaEl.textContent = `Visar ${activeTier}-scenariot`;
-  } else {
-    deltaEl.textContent = "";
-  }
+  // Tidigast hållbar ålder (≥80 % MC) — för insikter om du kan gå tidigare/senare
+  const earliest80 = earliestSustainAge(inputs);
 
   syncIskAfDefaults();
   renderShock(inputs);
@@ -969,10 +940,10 @@ function recalc() {
     });
     _lastMcData = mc.percentileData;
 
-    // Uppdatera success rate badge — färg relativt tier-tröskeln
+    // Uppdatera success rate badge — färg relativt robusthetströskeln (80 %)
     const sr    = mc.successRate;
-    const tier  = activeTier || currentTier;
-    const minSr = TIER_LIFESTYLE[tier]?.minSuccessRate ?? 0.80;
+    const tier  = "fire";          // intern referens för score/insikter (4%-regeln)
+    const minSr = ROBUST_SR;
     const gap   = sr - minSr;
 
     const badge = $("successRate");
@@ -983,14 +954,13 @@ function recalc() {
     const srLabel = $("successLabel");
     const minPct  = Math.round(minSr * 100);
     if (srLabel) {
-      const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
       if (gap >= 0.05) {
-        srLabel.textContent = `av ${MC_PATHS} banor. ${tierName} kräver ≥${minPct}% — god marginal.`;
+        srLabel.textContent = `av ${MC_PATHS} banor. En robust plan vill ha ≥${minPct}% — god marginal.`;
       } else if (gap >= 0) {
-        srLabel.textContent = `av ${MC_PATHS} banor. ${tierName} kräver ≥${minPct}% — precis godkänt, snäva marginaler.`;
+        srLabel.textContent = `av ${MC_PATHS} banor. En robust plan vill ha ≥${minPct}% — precis godkänt, snäva marginaler.`;
       } else {
         const needed = _srTable.length >= 3 ? srLookup(minSr) : null;
-        srLabel.innerHTML = `av ${MC_PATHS} banor. <strong>${tierName} kräver ≥${minPct}%</strong> — planen håller inte. `
+        srLabel.innerHTML = `av ${MC_PATHS} banor. <strong>En robust plan vill ha ≥${minPct}%</strong> — planen håller inte än. `
           + (needed ? `Pension vid ${needed} år ger ≥${minPct}%.` : `Justera med slidern nedan.`);
       }
     }
@@ -1004,12 +974,12 @@ function recalc() {
 
     // Rita om med fan chart
     drawCharts(result.flows, inputs.retire, mc.percentileData);
-    updatePlanSummary(inputs, currentTier, mc.successRate);
+    updatePlanSummary(inputs, mc.successRate);
 
     // Lugn-score + Insights (Conquest-stil plan-känsla)
     const scoreData = computeLugnScore(inputs, mc, tier, result);
     renderPlanScore(scoreData);
-    const insights = generateInsights(inputs, mc, tier, result, earliestByTier);
+    const insights = generateInsights(inputs, mc, result, earliest80);
     renderInsights(insights);
 
     // Spara MC-resultat och uppdatera backtest-jämförelsen sida-vid-sida
@@ -1028,9 +998,9 @@ function recalc() {
 // ─── Lugn-score (SAM SCORE-motsvarighet) ──────────────────────────────────────
 // Ett tal 0-100 för planens kvalitet. Fyra komponenter, viktade.
 function computeLugnScore(inputs, mc, tier, result) {
-  const minSr = TIER_LIFESTYLE[tier]?.minSuccessRate ?? 0.80;
+  const minSr = ROBUST_SR;
 
-  // 1. Hållbarhet (45%) — Monte Carlo success rate vs nivåns krav.
+  // 1. Hållbarhet (45%) — Monte Carlo success rate vs robusthetströskeln.
   //    Full poäng vid minSr+10pp, noll vid minSr−40pp.
   const sustainability = clamp01((mc.successRate - (minSr - 0.40)) / 0.50);
 
@@ -1069,10 +1039,9 @@ function scoreGrade(score) {
 
 // ─── Insights-motor ("Att tänka på") ──────────────────────────────────────────
 // Rangordnade, vägledande observationer. Aldrig dikterande.
-function generateInsights(inputs, mc, tier, result, earliestByTier) {
+function generateInsights(inputs, mc, result, earliest80) {
   const insights = [];
-  const minSr  = TIER_LIFESTYLE[tier]?.minSuccessRate ?? 0.80;
-  const tierName = TIER_NAMES[tier] || tier;
+  const minSr  = ROBUST_SR;
   const sr = mc.successRate;
 
   // — Hållbarhet —
@@ -1081,17 +1050,16 @@ function generateInsights(inputs, mc, tier, result, earliestByTier) {
     insights.push({
       sev: 3, icon: "⚠",
       title: "Planen håller inte ända fram",
-      body: `Med ${Math.round(sr*100)}% sannolikhet når den inte ${tierName}-tröskeln på ${Math.round(minSr*100)}%. `
+      body: `Med ${Math.round(sr*100)}% sannolikhet når den inte robusthetströskeln på ${Math.round(minSr*100)}%. `
         + (needed ? `I ett scenario där du går vid ${needed} år istället håller den.` : `Mer sparande eller senare frihet hjälper.`),
     });
   } else if (sr - minSr >= 0.10) {
-    const earlier = earliestByTier[tier];
     insights.push({
       sev: 1, icon: "✓",
       title: "Du har god marginal",
-      body: earlier && earlier < inputs.retire
-        ? `Planen är stark. I ett scenario kan du nå ${tierName} redan vid ${earlier} år — eller höja din livsstil.`
-        : `Planen är stark med ${Math.round(sr*100)}% sannolikhet. Du har utrymme att höja din livsstil eller gå tidigare.`,
+      body: earliest80 && earliest80 < inputs.retire
+        ? `Planen är stark. Med ≥80 % säkerhet bär den redan från ${earliest80} år — du kan gå tidigare, eller leva på mer.`
+        : `Planen är stark med ${Math.round(sr*100)}% sannolikhet. Du har utrymme att leva på mer eller gå tidigare.`,
     });
   }
 
