@@ -160,7 +160,8 @@ function simulate(inputs, opts = {}) {
   const { age, retire, lifespan, needPerMonth, savingsPerMonth,
           iskBalance, kfBalance, depaBalance,
           tjpPott, tjpPeriod, allmanMonthly, tjpContrib = 0, avtal = "ingen",
-          realReturn, inflation } = inputs;
+          realReturn, inflation,
+          loanBalance = 0, loanRate = 0, loanAmort = 0 } = inputs;
 
   const sideRatio    = opts.sideIncomeRatio    ?? 0;
   const sideUntilAge = opts.sideIncomeUntilAge ?? 0;
@@ -197,14 +198,36 @@ function simulate(inputs, opts = {}) {
   const flows = [];
   let bridgeUsed = 0, ran_dry = false;
 
+  // Bolån: amorteras ner med fast belopp/år. Räntan (efter ränteavdrag) +
+  // amorteringen är en boendekostnad som FÖRSVINNER vid slutbetalning. Under
+  // arbetsåren betalas den av lönen (redan inbakat i sparkvoten); under pension
+  // måste den tas ur portföljen → vi lägger den på behovet bara då, nominellt.
+  let loan = Math.max(0, loanBalance);
+  const amortAnnual = Math.max(0, loanAmort) * 12;
+  const loanR = Math.max(0, loanRate) / 100;
+
   for (let a = age; a <= lifespan; a++) {
     const i   = a - age;
     // Nominell avkastning: MC-override, annars glidbane-justerad eller flat
     const nom = retOverride
       ? retOverride[i] + inf
       : (_glidbana ? expectedRealReturnAtAge(a, { realReturn }) + inf : nomBase);
-    const needAnnual = needPerMonth * 12 * Math.pow(1 + inf, i);
+    let needAnnual   = needPerMonth * 12 * Math.pow(1 + inf, i);
     const inAccum    = a < retire;
+
+    // Bolån för detta år: ränta på aktuell skuld (efter ränteavdrag) + amortering.
+    // Ränteavdrag: 30 % upp till 100 000 kr ränta/år, 21 % därutöver.
+    let housingCost = 0;
+    if (loan > 0) {
+      const interestY  = loan * loanR;
+      const deduction  = Math.min(interestY, 100_000) * 0.30 + Math.max(0, interestY - 100_000) * 0.21;
+      const interestNet = interestY - deduction;
+      const amortY     = Math.min(amortAnnual, loan);
+      housingCost      = interestNet + amortY;     // nominell kr detta år
+      loan             = Math.max(0, loan - amortY);
+      // Bara under pension belastar boendet portföljen (annars täcks det av lön)
+      if (!inAccum) needAnnual += housingCost;
+    }
 
     // Pension i tre delar med egna startåldrar (BRUTTO, nominellt vid ålder a)
     const inflAdj = Math.pow(1 + inf, i);
@@ -812,6 +835,9 @@ function getInputs() {
     allmanMonthly:  +$("allmanMonthly").value,   // fältet är källa; lön för-ifyller det
     realReturn:     +$("realReturn").value,
     inflation:      +$("inflation").value,
+    loanBalance:    +($("loanBalance")?.value || 0),
+    loanRate:       +($("loanRate")?.value || 0),
+    loanAmort:      +($("loanAmort")?.value || 0),
   };
 }
 
@@ -1679,6 +1705,49 @@ function renderTrygghet() {
       bufEl.innerHTML = `Mål: <strong>${fmtKr(target)}</strong> (${months} mån × ${fmtKr(expenses)}).
         Du har ${fmtKr(bufferNow)} (${haveMonths.toFixed(1)} mån) — <span class="trygg-warn">${fmtKr(gap)} kvar</span>.
         Bufferten bör ligga på sparkonto, inte investerad.`;
+    }
+  }
+
+  // ── 1b. Bolån & amortering ────────────────────────────────────────────────────
+  const bolEl = $("tryggBolanResult");
+  if (bolEl) {
+    const loan  = inputs.loanBalance, rate = inputs.loanRate / 100, amort = inputs.loanAmort;
+    if (loan <= 0) {
+      bolEl.innerHTML = `Inget bolån inlagt. Har du ett — fyll i det ovan så visar vi när det är
+        avbetalt, hur boendekostnaden sjunker, och om du bör amortera eller investera.`;
+    } else {
+      const amortAnnual = amort * 12;
+      const interestY   = loan * rate;
+      const deduction   = Math.min(interestY, 100_000) * 0.30 + Math.max(0, interestY - 100_000) * 0.21;
+      const interestNetMonth = (interestY - deduction) / 12;
+      const housingMonth = interestNetMonth + amort;                 // ränta efter avdrag + amortering
+      const payoffYears  = amortAnnual > 0 ? Math.ceil(loan / amortAnnual) : Infinity;
+      const payoffAge    = inputs.age + payoffYears;
+
+      // Amortera vs investera: riskfri avkastning = ränta efter ränteavdrag (~×0,70)
+      const afterTaxMortgage = inputs.loanRate * 0.70;               // %
+      const expectedNominal  = inputs.realReturn + inputs.inflation; // %
+      const amortWins = afterTaxMortgage > expectedNominal;
+
+      let payoffTxt;
+      if (payoffYears === Infinity) {
+        payoffTxt = `Du amorterar inte — lånet ligger kvar. Boendekostnaden ~${fmtKr(housingMonth)}/mån
+          (ränta efter avdrag) finns kvar livet ut och belastar din pension.`;
+      } else {
+        const beforeFrihet = payoffAge <= inputs.retire;
+        payoffTxt = `Avbetalt om <strong>${payoffYears} år</strong> (vid ${payoffAge} år). Då försvinner
+          ~<strong>${fmtKr(housingMonth)}/mån</strong> i boendekostnad (ränta efter avdrag + amortering).
+          ${beforeFrihet
+            ? `Det sker <span class="trygg-ok">före din frihetsålder</span> — din pension är redan utan bolån.`
+            : `Det sker <span class="trygg-warn">efter din frihetsålder ${inputs.retire}</span> — planen lägger automatiskt på boendet tills dess.`}`;
+      }
+
+      const vsTxt = amortWins
+        ? `<span class="trygg-ok">Amortering vinner.</span> Att amortera ger en garanterad ~${afterTaxMortgage.toFixed(1)} % efter ränteavdrag — mer än din förväntade avkastning ${expectedNominal.toFixed(1)} %. Extra amortering är både trygghet och bra affär.`
+        : `Förväntad avkastning ${expectedNominal.toFixed(1)} % > lånets ~${afterTaxMortgage.toFixed(1)} % efter avdrag → att investera ger mer i snitt. Men amortering är <em>riskfritt</em> och sänker dina fasta kostnader — väg trygghet mot förväntat överskott.`;
+
+      bolEl.innerHTML = `${payoffTxt}<br><span style="display:inline-block;margin-top:8px">${vsTxt}</span>`
+        + `<p class="trygg-note">Ange "Vill leva på" som dina utgifter <em>utan</em> bolån — boendet läggs på automatiskt tills lånet är avbetalt, så det inte dubbelräknas.</p>`;
     }
   }
 

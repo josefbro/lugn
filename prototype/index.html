@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=36">
-<link rel="stylesheet" href="onboarding.css?v=36">
+<link rel="stylesheet" href="style.css?v=37">
+<link rel="stylesheet" href="onboarding.css?v=37">
 </head>
 <body>
 
@@ -288,6 +288,20 @@
             <input type="number" id="savingsPerMonth" value="20000" step="1000">
           </label>
 
+          <h3>Bolån <span class="input-hint">valfritt — sänker behovet när det är avbetalt</span></h3>
+          <label>
+            <span>Kvarvarande bolån</span>
+            <input type="number" id="loanBalance" value="0" step="50000">
+          </label>
+          <label>
+            <span>Ränta <span class="input-hint">%</span></span>
+            <input type="number" id="loanRate" value="3.5" step="0.1">
+          </label>
+          <label>
+            <span>Amorterar per månad</span>
+            <input type="number" id="loanAmort" value="0" step="500">
+          </label>
+
           <h3>Din pension</h3>
           <label>
             <span>Din kommun <span class="input-hint" id="kommunRate">för rätt skattesats</span></span>
@@ -475,6 +489,12 @@
                 </label>
               </div>
               <div class="trygg-result" id="tryggBufferResult">—</div>
+            </div>
+
+            <!-- 1b. Bolån -->
+            <div class="trygg-card" id="tryggBolanCard">
+              <div class="trygg-card-title">🏠 Bolån & amortering</div>
+              <div class="trygg-result" id="tryggBolanResult">—</div>
             </div>
 
             <!-- 2. Motståndskraft -->
@@ -705,9 +725,9 @@
   <span class="reset-fab-icon">↺</span><span class="reset-fab-label"> Ta om frågorna</span>
 </button>
 
-<script src="kommunalskatt.js?v=36"></script>
-<script src="market_history.js?v=36"></script>
-<script src="onboarding.js?v=36"></script>
-<script src="app.js?v=36"></script>
+<script src="kommunalskatt.js?v=37"></script>
+<script src="market_history.js?v=37"></script>
+<script src="onboarding.js?v=37"></script>
+<script src="app.js?v=37"></script>
 </body>
 </html>
