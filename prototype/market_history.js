@@ -3,8 +3,8 @@
 //   MSCI World: Gross Total Return, USD ("total returns including reinvested
 //     dividends" — bekräftat Wikipedia). 1970–2025.
 //   MSCI World ex-USA: gross TR, USD (upmyinterest). 1970–2025.
-//   Sverige SIXRX: SIX Return Index, SEK inkl utdelningar (RikaTillsammans). 1900–2024.
-//     (2025 ej publicerat i källan än per juni 2026 — läggs till när verifierat.)
+//   Sverige SIXRX: SIX Return Index, SEK inkl utdelningar. 1900–2025.
+//     (1900–2024 RikaTillsammans; 2025 = +12,67% från index-nivåer 2257,62→2543,62.)
 // OBS: nominell. Backtest-motorn deflaterar med användarens inflationsantagande.
 
 window.MARKET_HISTORY = {
@@ -66,7 +66,8 @@ window.MARKET_HISTORY = {
       1998:0.1308,1999:0.6974,2000:-0.108,2001:-0.1483,2002:-0.359,2003:0.3417,2004:0.2076,
       2005:0.3635,2006:0.2806,2007:-0.026,2008:-0.3904,2009:0.525,2010:0.2668,2011:-0.135,
       2012:0.1648,2013:0.2795,2014:0.1579,2015:0.1039,2016:0.0962,2017:0.0948,2018:-0.0442,
-      2019:0.3497,2020:0.1482,2021:0.3934,2022:-0.2277,2023:0.1919,2024:0.0855
+      2019:0.3497,2020:0.1482,2021:0.3934,2022:-0.2277,2023:0.1919,2024:0.0855,
+      2025:0.1267
     }
   }
 };
