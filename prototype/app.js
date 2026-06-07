@@ -1626,13 +1626,22 @@ function runBacktest(inputs, allocWorld) {
   if (!hist) return null;
   const wWorld = hist.world.returns;
   const wSwe   = hist.sweden.returns;
+  const fx     = hist.usdSek.rates;
 
-  // Blandad nominell avkastning för ett år, eller null om data saknas i mixen.
+  // MSCI World är i USD → räkna om till SEK (svensk investerares perspektiv):
+  // SEK-avkastning = (1 + USD-avk) × (USD/SEK_t / USD/SEK_{t-1}) − 1.
+  const worldSek = (y) => {
+    if (wWorld[y] == null || fx[y] == null || fx[y - 1] == null) return null;
+    return (1 + wWorld[y]) * (fx[y] / fx[y - 1]) - 1;
+  };
+
+  // Blandad SEK-avkastning för ett år, eller null om data saknas i mixen.
   const needWorld = allocWorld > 0, needSwe = allocWorld < 1;
   const blend = (y) => {
-    if (needWorld && wWorld[y] == null) return null;
-    if (needSwe   && wSwe[y]   == null) return null;
-    return allocWorld * (wWorld[y] ?? 0) + (1 - allocWorld) * (wSwe[y] ?? 0);
+    let w = 0, s = 0;
+    if (needWorld) { w = worldSek(y); if (w == null) return null; }
+    if (needSwe)   { s = wSwe[y];     if (s == null) return null; }
+    return allocWorld * w + (1 - allocWorld) * s;
   };
 
   // Tillgängligt år-spann beroende på vilka serier som behövs
