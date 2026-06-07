@@ -842,17 +842,15 @@ function getInputs() {
   };
 }
 
-// Lagstadgat amorteringskrav (Finansinspektionen). Belåningsgrad styr grundkravet,
-// skuldkvot (lån > 4,5× bruttoårsinkomst) ger +1 procentenhet. Procent av lånet/år.
-// OBS: FI räknar på ursprungligt lånebelopp; här uppskattat på nuvarande lån.
-function amorteringskrav(loan, propertyValue, grossAnnualIncome) {
+// Lagstadgat amorteringskrav (lag 2026:226, från 1 april 2026). Endast belånings-
+// grad styr: >70 % → 2 %/år, 50–70 % → 1 %, ≤50 % → 0. Det SKÄRPTA (skuldkvots-)
+// kravet på +1 procentenhet vid lån >4,5× bruttoinkomst är SLOPAT 2026-04-01.
+// OBS: kravet räknas på ursprungligt lånebelopp; här uppskattat på nuvarande lån.
+function amorteringskrav(loan, propertyValue) {
   if (loan <= 0 || propertyValue <= 0) return null;
   const ltv = loan / propertyValue;
-  let pct = ltv > 0.70 ? 0.02 : ltv > 0.50 ? 0.01 : 0;
-  const skuldkvot = grossAnnualIncome > 0 ? loan / grossAnnualIncome : 0;
-  const skuldkvotTillagg = skuldkvot > 4.5 ? 0.01 : 0;
-  pct += skuldkvotTillagg;
-  return { ltv, skuldkvot, pct, skuldkvotTillagg, annual: pct * loan, monthly: pct * loan / 12 };
+  const pct = ltv > 0.70 ? 0.02 : ltv > 0.50 ? 0.01 : 0;
+  return { ltv, pct, annual: pct * loan, monthly: pct * loan / 12 };
 }
 
 function recalc() {
@@ -1764,23 +1762,24 @@ function renderTrygghet() {
         ? `<span class="trygg-ok">Amortering vinner.</span> Att amortera ger en garanterad ~${afterTaxMortgage.toFixed(1)} % efter ränteavdrag — mer än din förväntade avkastning ${expectedNominal.toFixed(1)} %. Extra amortering är både trygghet och bra affär.`
         : `Förväntad avkastning ${expectedNominal.toFixed(1)} % > lånets ~${afterTaxMortgage.toFixed(1)} % efter avdrag → att investera ger mer i snitt. Men amortering är <em>riskfritt</em> och sänker dina fasta kostnader — väg trygghet mot förväntat överskott.`;
 
-      // Lagstadgat amorteringskrav (om bostadsvärde angetts)
-      const grossAnnual = (+($("salary")?.value || 0)) * 12;
-      const krav = amorteringskrav(loan, inputs.propertyValue, grossAnnual);
+      // Lagstadgat amorteringskrav (om bostadsvärde angetts) — endast belåningsgrad
+      const krav = amorteringskrav(loan, inputs.propertyValue);
       let kravTxt = "";
       if (krav) {
         const ltvPct = (krav.ltv * 100).toFixed(0);
-        const bracket = krav.ltv > 0.70 ? "2 %" : krav.ltv > 0.50 ? "1 %" : "0 %";
-        const skuldTxt = krav.skuldkvotTillagg > 0
-          ? ` Skuldkvot ${krav.skuldkvot.toFixed(1)}× > 4,5 → +1 procentenhet.`
-          : ` Skuldkvot ${krav.skuldkvot.toFixed(1)}× (under 4,5).`;
-        const needsMore = krav.monthly > inputs.loanAmort + 50;
-        kravTxt = `<p class="trygg-note">Belåningsgrad <strong>${ltvPct} %</strong> → grundkrav ${bracket}/år.${skuldTxt}
-          Lagkrav: ~<strong>${fmtKr(krav.monthly)}/mån</strong> (${(krav.pct*100).toFixed(0)} % av lånet).
-          ${needsMore
-            ? `Du amorterar ${fmtKr(inputs.loanAmort)} — under kravet. <button class="btn btn-ghost trygg-apply" id="kravApply" type="button">Använd ${fmtKr(krav.monthly)}/mån →</button>`
-            : `Du uppfyller kravet. ✓`}
-          <br><span style="opacity:.7">Uppskattat på nuvarande lån; FI räknar på ursprungligt lånebelopp.</span></p>`;
+        if (krav.pct === 0) {
+          kravTxt = `<p class="trygg-note">Belåningsgrad <strong>${ltvPct} %</strong> (under 50 %) → <span class="trygg-ok">inget amorteringskrav</span>.
+            Extra amortering är frivillig — väg den mot att investera ovan.</p>`;
+        } else {
+          const bracket = krav.ltv > 0.70 ? "2 %" : "1 %";
+          const needsMore = krav.monthly > inputs.loanAmort + 50;
+          kravTxt = `<p class="trygg-note">Belåningsgrad <strong>${ltvPct} %</strong> → amorteringskrav ${bracket}/år
+            ≈ ~<strong>${fmtKr(krav.monthly)}/mån</strong>.
+            ${needsMore
+              ? `Du amorterar ${fmtKr(inputs.loanAmort)} — under kravet. <button class="btn btn-ghost trygg-apply" id="kravApply" type="button">Använd ${fmtKr(krav.monthly)}/mån →</button>`
+              : `Du uppfyller kravet. ✓`}
+            <br><span style="opacity:.7">Skärpta skuldkvotskravet slopat 1 apr 2026. Uppskattat på nuvarande lån (kravet räknas på ursprungligt belopp).</span></p>`;
+        }
       }
 
       bolEl.innerHTML = `${payoffTxt}<br><span style="display:inline-block;margin-top:8px">${vsTxt}</span>`
