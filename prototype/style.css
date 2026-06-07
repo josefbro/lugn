@@ -1213,6 +1213,27 @@ canvas {
 .trygg-result.trygg-calc { opacity: .5; }
 .trygg-apply { font-size: 12px; padding: 5px 11px; margin-left: 4px; white-space: nowrap; }
 
+/* === FÖRDJUPNING (hopfällbara verktyg) === */
+.deepdive { margin: 4px 0 24px; border-top: 1px solid var(--line); }
+.deepdive-summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 18px 2px;
+}
+.deepdive-summary::-webkit-details-marker { display: none; }
+.deepdive-summary:hover .deepdive-title { color: var(--sage-700); }
+.deepdive-title { font-family: var(--serif); font-size: 18px; font-weight: 600; color: var(--ink-900); }
+.deepdive-sub { font-size: 13px; color: var(--ink-400); flex: 1; line-height: 1.4; }
+.deepdive-chevron {
+  font-size: 24px; line-height: 1; color: var(--sage-700);
+  transition: transform .2s ease; transform: rotate(0deg);
+}
+.deepdive[open] .deepdive-chevron { transform: rotate(90deg); }
+.deepdive[open] .deepdive-summary { margin-bottom: 10px; }
+@media (max-width: 560px) {
+  .deepdive-sub { display: none; }   /* håll rubriken ren på mobil */
+}
+
 /* === BEHAVIORAL SHOCK === */
 .shock-wrap {
   background: var(--cream-100);

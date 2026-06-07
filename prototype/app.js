@@ -2337,6 +2337,12 @@ document.querySelectorAll("input, select").forEach(el => {
   el.addEventListener("change", recalc);
 });
 
+// Fördjupning: rita om canvas-graferna när avsnittet öppnas (de är display:none
+// medan det är hopfällt, vilket kan ge fel storlek vid första öppning).
+document.querySelector(".deepdive")?.addEventListener("toggle", (e) => {
+  if (e.target.open) { renderBacktest(); updateIskAfComparison(); }
+});
+
 // Bolån: tvåvägs-synk slider ↔ lån, + manuell amortering låser autofyllet
 $("ltvSlider")?.addEventListener("input", () => { _bolanSource = "ltv"; recalc(); });
 $("loanBalance")?.addEventListener("input", () => { _bolanSource = "loan"; recalc(); });
