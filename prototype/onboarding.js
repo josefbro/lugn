@@ -71,142 +71,125 @@ function isStepValid(step) {
   if (step === 1) return !!answers.motivation;
   if (step === 2) return !!answers.partner && !!answers.employment;
   if (step === 3) return !!answers.totalSaved && !!answers.monthlySavings && !!answers.hasTjp;
-  if (step === 4) return !!answers.targetTier;
+  if (step === 4) return (+answers.needPerMonth || 0) > 0;
   if (step === 5) return true;  // Rekommendation — alltid OK att gå vidare
   if (step === 6) return !!answers.disposition;
   return true;
 }
 
-// ─── Steg 5: Rekommendation ──────────────────────────────────────────────────
+// Anta tjänstepensionsavtal utifrån anställningsform (justerbart i kalkylatorn).
+function assumedAvtal() {
+  if (answers.employment === "ab") return "ingen";   // eget AB → ingen kollektiv TJP
+  return "itp1";                                       // anställd/blandat → ITP1 som bas
+}
+
+// ─── Steg 5: Rekommendation (behovsbaserad, inkl. pension) ───────────────────
+// Två faser: visa spinner direkt (paint), kör tunga Monte Carlo-svepet på nästa
+// tick så stegövergången inte fryser.
 function renderRecommendation() {
   const el = $ob("obRecommendation");
   if (!el) return;
 
-  // Vänta tills app.js är laddat (ska alltid vara det vid interaktion)
-  if (typeof simulate !== "function" || typeof earliestAgeForTier !== "function") {
+  // Vänta tills app.js är laddat
+  if (typeof simulate !== "function" || typeof earliestSustainAge !== "function"
+      || typeof allmanAt65Full !== "function") {
     el.innerHTML = `<p class="ob-sublead" style="opacity:.6">Laddar simulering…</p>`;
     setTimeout(renderRecommendation, 200);
     return;
   }
 
+  el.innerHTML = `
+    <div class="ob-spinner" style="margin:40px auto 16px"></div>
+    <p class="ob-sublead" style="text-align:center;opacity:.7">Kör tusentals scenarier på din plan…</p>`;
+  setTimeout(() => computeRecommendation(el), 40);
+}
+
+function computeRecommendation(el) {
   const age          = answers.age || 35;
   const retireAge    = answers.retireAge || 55;
-  const totalSaved   = +answers.totalSaved  || 1_000_000;
-  const monthlySav   = +answers.monthlySavings || 10_000;
-  const targetTier   = answers.targetTier || "fire";
-  const needPerMonth = answers.needPerMonth || 35_000;
+  const totalSaved   = +answers.totalSaved || 0;
+  const monthlySav   = +answers.monthlySavings || 0;
+  const salary       = +answers.salary || 0;
+  const needPerMonth = +answers.needPerMonth || 30_000;
+
+  // Pension från lön — det här lyfter planen från "onödigt pessimistisk".
+  const avtal         = assumedAvtal();
+  const allmanFull    = allmanAt65Full(salary);                 // kr/mån vid 65, full karriär
+  const allmanMonthly = Math.round(allmanFull * allmanFactor(retireAge));
+  const tjpContrib    = tjpContribFromAvtal(avtal, salary) || 0; // kr/mån avsättning
 
   const inputs = {
     age, retire: retireAge, lifespan: 90,
     needPerMonth, savingsPerMonth: monthlySav,
     iskBalance: totalSaved, kfBalance: 0, depaBalance: 0,
-    tjpPott: 0, tjpPeriod: 20, allmanMonthly: 0,
+    tjpPott: 0, tjpPeriod: 20, tjpContrib, avtal,
+    allmanMonthly,
     realReturn: 5, inflation: 2,
   };
 
-  // Beräkna earliestAge per tier
-  const tiers = ["coast", "barista", "lean", "fire", "fat"];
-  const tierLabels = { coast:"Coast", barista:"Barista", lean:"Lean", fire:"FIRE", fat:"Fat FIRE" };
-  const earliestAges = {};
-  tiers.forEach(t => { earliestAges[t] = earliestAgeForTier(inputs, t); });
+  // Sannolikhet att planen håller vid målåldern (Monte Carlo, fat-tailed).
+  // Rubriken och alla delbudskap bygger på samma 80 %-tröskel → ingen motsägelse.
+  const mc    = runMonteCarlo(inputs);
+  const holds = Math.round(mc.successRate * 100);
+  const sustainsAtTarget = holds >= 80;
+  // Tidigast hållbar ålder (≥80 %) med nuvarande sparande
+  const earliest = earliestSustainAge(inputs);
 
-  // Klassificera nuläget vid targetRetireAge
-  const simAtRetire   = simulate(inputs);
-  const flowAtRetire  = simAtRetire.flows.find(f => f.age === retireAge);
-  const inf           = 0.02;
-  const annualSpend   = needPerMonth * 12 * Math.pow(1 + inf, retireAge - age);
-  const capital       = flowAtRetire?.totalCapital ?? 0;
-  const achievedTier  = classifyTier(annualSpend, capital);
-  const tierOrder     = tiers;
-  const targetIdx     = tierOrder.indexOf(targetTier);
-  const achievedIdx   = tierOrder.indexOf(achievedTier);
-  const gap           = targetIdx - achievedIdx;
+  const kr = n => Math.round(n).toLocaleString("sv-SE").replace(/,/g, " ");
 
-  // Hur mycket extra sparande krävs för att nå target tier vid target age?
-  const neededSavings = gap > 0
-    ? requiredSavings({ ...inputs, retire: retireAge }, retireAge)
-    : null;
-  const savingsDelta = neededSavings !== null ? neededSavings - monthlySav : null;
-
-  // Special case: Coast FI nu
-  const isAlreadyCoast = earliestAges.coast !== null && earliestAges.coast <= age;
-
-  // ─── Rendera HTML ──────────────────────────────────────────────────────────
-  const tierPillsHtml = tiers.map(t => {
-    const a = earliestAges[t];
-    const isTarget   = t === targetTier;
-    const isAchieved = t === achievedTier;
-    const isCoastNow = t === "coast" && isAlreadyCoast;
-    let cls = "ob-rec-tier";
-    if (isTarget)   cls += " target";
-    if (isAchieved && !isTarget) cls += " achieved";
-    if (isCoastNow) cls += " achieved";
-    return `
-      <div class="${cls}">
-        <span class="ob-rec-tier-name">${tierLabels[t]}</span>
-        <span class="ob-rec-tier-age">${isCoastNow ? "Nu ✓" : a !== null ? `${a} år` : "ej nåbart"}</span>
-        ${isTarget ? '<span class="ob-rec-tier-badge">ditt mål</span>' : ""}
-      </div>`;
-  }).join("");
-
+  // ─── Huvudbudskap ──────────────────────────────────────────────────────────
   let messageHtml;
-  if (isAlreadyCoast) {
+  if (sustainsAtTarget && earliest < retireAge) {
     messageHtml = `
       <div class="ob-rec-highlight good">
-        <strong>Du är redan Coast FI</strong> — din portfölj kan växa till FIRE-nivå vid 65 utan att du sparar en krona till. Allt extra sparande är ett val, inte ett krav.
+        <strong>Bättre än du kanske tror.</strong> Din nuvarande bana bär
+        <strong>${kr(needPerMonth)} kr/mån</strong> redan från <strong>${earliest} år</strong> —
+        ${retireAge - earliest} år före ditt mål. Du kan gå tidigare, eller lugna ner sparandet.
       </div>`;
-  } else if (gap <= 0) {
-    // On track or over-delivering
-    const earlyYears = retireAge - (earliestAges[targetTier] ?? retireAge);
-    if (earlyYears > 0) {
-      messageHtml = `
-        <div class="ob-rec-highlight good">
-          <strong>Bättre än du tror.</strong> Din nuvarande bana når ${tierLabels[targetTier]} redan vid <strong>${earliestAges[targetTier]} år</strong> — ${earlyYears} år tidigare än ditt mål. Du kan lugna ner sparandet, eller gå tidigare.
-        </div>`;
-    } else {
-      messageHtml = `
-        <div class="ob-rec-highlight good">
-          <strong>Din plan håller.</strong> Med nuvarande sparande når du ${tierLabels[targetTier]} vid <strong>${earliestAges[targetTier] ?? retireAge} år</strong> — precis som du planerat.
-        </div>`;
-    }
+  } else if (sustainsAtTarget) {
+    messageHtml = `
+      <div class="ob-rec-highlight good">
+        <strong>Din plan håller.</strong> Med nuvarande sparande kan du leva på
+        <strong>${kr(needPerMonth)} kr/mån</strong> från <strong>${retireAge} år</strong> — precis som du siktar på.
+      </div>`;
   } else {
-    // Gap — needs more savings or later retirement
-    const altTierAge = earliestAges[achievedTier];
+    const needSav = requiredSavingsToSustain(inputs, retireAge);
+    const extra   = needSav !== null ? Math.max(0, needSav - monthlySav) : null;
+    const earliestTxt = earliest !== null
+      ? `Med dagens sparande räcker det istället från <strong>${earliest} år</strong>.`
+      : `Med dagens sparande nås målet inte inom rimlig horisont.`;
     messageHtml = `
       <div class="ob-rec-highlight warn">
-        <strong>Gapet är hanterbart.</strong> Med nuvarande sparande når du <strong>${tierLabels[achievedTier]}</strong> vid ${altTierAge ?? "?"} år — ett steg under ditt mål.
-        ${savingsDelta && savingsDelta > 0
-          ? `Spara <strong>${Math.round(savingsDelta/500)*500} kr/mån</strong> mer för att nå ${tierLabels[targetTier]} vid ${retireAge} år.`
+        <strong>Det finns ett gap — men det är konkret.</strong>
+        ${extra !== null && extra > 0
+          ? `För att leva på ${kr(needPerMonth)} kr/mån från ${retireAge} år behöver du spara
+             ca <strong>${kr(Math.round(extra/500)*500)} kr/mån mer</strong>
+             (idag ${kr(monthlySav)} kr). `
           : ""}
+        ${earliestTxt}
       </div>`;
   }
 
-  // Alternativ att se på
-  const alternativesHtml = (() => {
-    const lines = [];
-    // Om de inte redan är Coast FI och Coast är möjligt snart
-    if (!isAlreadyCoast && earliestAges.coast !== null) {
-      lines.push(`🏝 <strong>Coast FI</strong> uppnår du redan vid ${earliestAges.coast} år — sluta spara och låt portföljen växa.`);
-    }
-    // Lean om de siktar på FIRE/Fat
-    if ((targetTier === "fire" || targetTier === "fat") && earliestAges.lean !== null) {
-      lines.push(`⚡ <strong>Lean FIRE</strong> är möjligt ${earliestAges.lean} år — ${retireAge - earliestAges.lean} år tidigare med lägre spending.`);
-    }
-    // FIRE om de siktar på Fat
-    if (targetTier === "fat" && earliestAges.fire !== null) {
-      lines.push(`🎯 <strong>FIRE (4%)</strong> uppnår du vid ${earliestAges.fire} år — ${retireAge - earliestAges.fire} år tidigare.`);
-    }
-    return lines.length
-      ? `<div class="ob-rec-alternatives"><p class="ob-question" style="margin-bottom:10px">Alternativ att se på:</p><ul class="ob-rec-list">${lines.map(l=>`<li>${l}</li>`).join("")}</ul></div>`
-      : "";
-  })();
+  // ─── Pensions-rad: visa att vi faktiskt räknar in den ────────────────────────
+  const pensionHtml = salary > 0 ? `
+    <div class="ob-rec-pension">
+      Vi räknar in din <strong>allmänna pension</strong> (~${kr(allmanMonthly)} kr/mån brutto vid ${retireAge})
+      ${tjpContrib > 0 ? `och <strong>tjänstepension</strong> (~${kr(tjpContrib)} kr/mån avsätts, antaget ${avtal.toUpperCase()})` : ""}
+      utöver ditt egna sparande. Justera avtal och belopp i kalkylatorn.
+    </div>` : `
+    <div class="ob-rec-pension">
+      Ingen lön angiven — då räknar vi utan allmän/tjänstepension. Lägg till lön i kalkylatorn för en mindre pessimistisk bild.
+    </div>`;
 
   el.innerHTML = `
     <p class="ob-sublead">Baserat på dina siffror — vi kör kalkylatorn åt dig.</p>
-    <div class="ob-rec-tiers">${tierPillsHtml}</div>
+    <div class="ob-rec-holds ${holds >= 80 ? "good" : holds >= 50 ? "mid" : "low"}">
+      <span class="ob-rec-holds-num">${holds}%</span>
+      <span class="ob-rec-holds-label">sannolikhet att pengarna räcker livet ut<br>vid uttag från ${retireAge} år</span>
+    </div>
     ${messageHtml}
-    ${alternativesHtml}
-    <p class="ob-rec-footer">Du kan finjustera alla siffror i kalkylatorn efteråt.</p>
+    ${pensionHtml}
+    <p class="ob-rec-footer">Du kan finjustera alla siffror — lön, avtal, allokering — i kalkylatorn efteråt.</p>
   `;
 }
 
@@ -239,18 +222,6 @@ function setupListeners() {
     });
   });
 
-  document.querySelectorAll("#obOverlay .ob-tier-cards").forEach(group => {
-    group.querySelectorAll(".ob-tier-card").forEach(card => {
-      card.addEventListener("click", () => {
-        group.querySelectorAll(".ob-tier-card").forEach(c => c.classList.remove("selected"));
-        card.classList.add("selected");
-        answers.targetTier   = card.dataset.val;
-        answers.needPerMonth = +card.dataset.need;
-        updateNextBtn();
-      });
-    });
-  });
-
   $ob("obAge")?.addEventListener("input", e => {
     $ob("obAgeVal").textContent = `${e.target.value} år`;
     answers.age = +e.target.value;
@@ -259,9 +230,19 @@ function setupListeners() {
     $ob("obRetireVal").textContent = `${e.target.value} år`;
     answers.retireAge = +e.target.value;
   });
+  $ob("obSalary")?.addEventListener("input", e => {
+    $ob("obSalaryVal").textContent = `${(+e.target.value).toLocaleString("sv-SE").replace(/,/g," ")} kr`;
+    answers.salary = +e.target.value;
+  });
+  $ob("obNeed")?.addEventListener("input", e => {
+    $ob("obNeedVal").textContent = `${(+e.target.value).toLocaleString("sv-SE").replace(/,/g," ")} kr/mån`;
+    answers.needPerMonth = +e.target.value;
+  });
 
-  answers.age      = +$ob("obAge").value;
-  answers.retireAge = +$ob("obRetire").value;
+  answers.age          = +$ob("obAge").value;
+  answers.retireAge    = +$ob("obRetire").value;
+  answers.salary       = +($ob("obSalary")?.value || 40000);
+  answers.needPerMonth = +($ob("obNeed")?.value || 30000);
 
   $ob("obGoals")?.addEventListener("input", e => { answers.goals = e.target.value; });
 
@@ -331,11 +312,16 @@ function resetOnboardingState() {
   const ageEl = $ob("obAge"), retireEl = $ob("obRetire");
   if (ageEl)    { ageEl.value = 35;    $ob("obAgeVal").textContent = "35 år"; }
   if (retireEl) { retireEl.value = 55; $ob("obRetireVal").textContent = "55 år"; }
+  const salEl = $ob("obSalary"), needEl = $ob("obNeed");
+  if (salEl)  { salEl.value = 40000;  $ob("obSalaryVal").textContent = "40 000 kr"; }
+  if (needEl) { needEl.value = 30000; $ob("obNeedVal").textContent = "30 000 kr/mån"; }
   const goalsEl = $ob("obGoals");
   if (goalsEl) goalsEl.value = "";
   // Default-svar som setupListeners normalt sätter
   answers.age = 35;
   answers.retireAge = 55;
+  answers.salary = 40000;
+  answers.needPerMonth = 30000;
 }
 
 // ─── Visa igen (från hero-knapp eller reset-knapp) ───────────────────────────

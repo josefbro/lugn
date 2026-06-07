@@ -436,6 +436,64 @@ function requiredSavings(inputs, targetRetireAge) {
   return Math.ceil((lo + hi) / 2);
 }
 
+// ─── Behovsbaserad utvärdering (utan livsstils-tiers) ────────────────────────
+// Allt nedan bygger på SAMMA mått som rubriken: sannolikhet (Monte Carlo, fat-
+// tailed) att pengarna räcker livet ut. Vi använder en lättare MC (färre banor)
+// för svep/sökningar så onboardingen inte hänger, och ett tröskelvärde på 80 %.
+const SUSTAIN_TARGET    = 0.80;
+const MC_PATHS_QUICK    = 600;   // lättare MC för svep/sökningar (snabbhet > precision)
+
+// Snabb sannolikhet att planen håller (andel banor som inte tar slut).
+function holdProbability(inputs, retireAge, paths = MC_PATHS_QUICK) {
+  const base = { ...inputs, retire: retireAge };
+  const years = base.lifespan - base.age + 1;
+  const baseMu = base.realReturn / 100;
+  let ok = 0;
+  for (let p = 0; p < paths; p++) {
+    const ret = Array.from({ length: years }, (_, i) => {
+      const a   = base.age + i;
+      const mu  = _glidbana ? expectedRealReturnAtAge(a, base) : baseMu;
+      const sig = volAtAge(a);
+      return Math.max(-0.60, Math.min(1.0, mu + randStudentT() * sig));
+    });
+    if (!simulate(base, { returnOverride: ret }).ran_dry) ok++;
+  }
+  return ok / paths;
+}
+
+// "Håller planen?" = ≥80 % sannolikhet att pengarna räcker till lifespan.
+function planSustains(inputs, retireAge) {
+  return holdProbability(inputs, retireAge) >= SUSTAIN_TARGET;
+}
+
+// Tidigaste ålder där nuvarande sparande bär needPerMonth med ≥80 % säkerhet.
+// Hållsannolikheten är monoton i uttagsålder (senare frihet → mer pott, kortare
+// uttag) → binärsökning räcker (~6 utvärderingar istället för 40).
+function earliestSustainAge(inputs) {
+  let lo = inputs.age, hi = 75;
+  if (!planSustains(inputs, hi)) return null;
+  if (planSustains(inputs, lo)) return lo;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (planSustains(inputs, mid)) hi = mid; else lo = mid + 1;
+  }
+  return lo;
+}
+
+// Hur mycket månadssparande krävs för att klara needPerMonth vid retireAge (≥80 %)?
+function requiredSavingsToSustain(inputs, retireAge) {
+  if (planSustains(inputs, retireAge)) return inputs.savingsPerMonth;
+  let lo = inputs.savingsPerMonth, hi = Math.max(inputs.needPerMonth * 6, lo + 1000);
+  // Säkerställ att hi faktiskt räcker; annars är målet orealistiskt vid den åldern
+  if (!planSustains({ ...inputs, savingsPerMonth: hi }, retireAge)) return null;
+  for (let iter = 0; iter < 16; iter++) {
+    const mid = (lo + hi) / 2;
+    if (planSustains({ ...inputs, savingsPerMonth: mid }, retireAge)) hi = mid;
+    else lo = mid;
+  }
+  return Math.ceil((lo + hi) / 2);
+}
+
 // ─── Chart: dubbel panel (ackumulering + brygga) ─────────────────────────────
 function drawCharts(flows, retireAge, mcData) {
   drawAccumChart(flows, retireAge, mcData);
@@ -2144,6 +2202,12 @@ function applyOnboardingAnswers() {
     if (a.totalSaved)    $("iskBalance").value      = a.totalSaved;
     if (a.monthlySavings) $("savingsPerMonth").value = a.monthlySavings;
     if (a.needPerMonth)  $("needPerMonth").value    = a.needPerMonth;
+    if (a.salary != null && $("salary")) $("salary").value = a.salary;
+
+    // Antaget avtal utifrån anställningsform (kan ändras i kalkylatorn)
+    if (a.employment && $("avtal")) {
+      $("avtal").value = a.employment === "ab" ? "ingen" : "itp1";
+    }
 
     // TJP: om de inte vet, sätt pott till 0
     if (a.hasTjp === "none") $("tjpPott").value = 0;

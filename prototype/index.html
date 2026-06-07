@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=27">
-<link rel="stylesheet" href="onboarding.css?v=27">
+<link rel="stylesheet" href="style.css?v=30">
+<link rel="stylesheet" href="onboarding.css?v=30">
 </head>
 <body>
 
@@ -37,7 +37,7 @@
 
     <!-- Steg 2 -->
     <div class="ob-step" data-step="2">
-      <div class="ob-step-label">Steg 2 av 5</div>
+      <div class="ob-step-label">Steg 2 av 6</div>
       <h2 class="ob-h2">Om dig</h2>
       <label class="ob-label">
         <span>Hur gammal är du?</span>
@@ -61,10 +61,18 @@
 
     <!-- Steg 3 -->
     <div class="ob-step" data-step="3">
-      <div class="ob-step-label">Steg 3 av 5</div>
+      <div class="ob-step-label">Steg 3 av 6</div>
       <h2 class="ob-h2">Dina pengar</h2>
       <p class="ob-sublead">Ungefär räcker. Du kan finjustera allt efteråt.</p>
-      <p class="ob-question">Totalt sparat idag? <span class="ob-hint">(ISK, KF, fonder, depå)</span></p>
+      <label class="ob-label">
+        <span>Vad tjänar du i månaden? <span class="ob-hint">(lön före skatt)</span></span>
+        <div class="ob-slider-row">
+          <input type="range" id="obSalary" min="0" max="120000" step="1000" value="40000">
+          <strong id="obSalaryVal">40 000 kr</strong>
+        </div>
+      </label>
+      <p class="ob-hint" style="margin:6px 0 0">Vi använder lönen för att räkna in din allmänna pension och tjänstepension — annars blir planen onödigt pessimistisk.</p>
+      <p class="ob-question" style="margin-top:28px">Totalt sparat idag? <span class="ob-hint">(ISK, KF, fonder, depå)</span></p>
       <div class="ob-chips" data-key="totalSaved">
         <button class="ob-chip" data-val="250000">Under 500 000</button>
         <button class="ob-chip" data-val="750000">500k – 1 miljon</button>
@@ -90,7 +98,7 @@
 
     <!-- Steg 4 -->
     <div class="ob-step" data-step="4">
-      <div class="ob-step-label">Steg 4 av 5</div>
+      <div class="ob-step-label">Steg 4 av 6</div>
       <h2 class="ob-h2">Ditt mål</h2>
       <label class="ob-label">
         <span>Vid vilken ålder vill du ha ekonomisk frihet?</span>
@@ -99,29 +107,14 @@
           <strong id="obRetireVal">55 år</strong>
         </div>
       </label>
-      <p class="ob-question" style="margin-top:32px">Vilken livsstil siktar du på?</p>
-      <div class="ob-tier-cards" data-key="targetTier">
-        <button class="ob-tier-card" data-val="barista" data-need="25000">
-          <span class="ob-tier-name">Barista</span>
-          <span class="ob-tier-kr">~25 000 kr/mån</span>
-          <span class="ob-tier-desc">Halvtidsjobb är valt, inte tvingat. Portföljen fyller gapet.</span>
-        </button>
-        <button class="ob-tier-card" data-val="lean" data-need="25000">
-          <span class="ob-tier-name">Lean FIRE</span>
-          <span class="ob-tier-kr">~25 000 kr/mån</span>
-          <span class="ob-tier-desc">Full frihet, enkelt liv. Kräver viss flexibilitet i dåliga börsår.</span>
-        </button>
-        <button class="ob-tier-card" data-val="fire" data-need="35000">
-          <span class="ob-tier-name">FIRE</span>
-          <span class="ob-tier-kr">~35 000 kr/mån</span>
-          <span class="ob-tier-desc">Bekvämt, inga kompromisser. Klassiska 4%-regeln.</span>
-        </button>
-        <button class="ob-tier-card" data-val="fat" data-need="55000">
-          <span class="ob-tier-name">Fat FIRE</span>
-          <span class="ob-tier-kr">~55 000 kr/mån</span>
-          <span class="ob-tier-desc">Generöst, stor säkerhetsmarginal. Klarar nästan alla börskriser.</span>
-        </button>
-      </div>
+      <label class="ob-label" style="margin-top:32px">
+        <span>Hur mycket vill du kunna leva på i månaden — <em>efter skatt</em> — när du är fri?</span>
+        <div class="ob-slider-row">
+          <input type="range" id="obNeed" min="10000" max="80000" step="1000" value="30000">
+          <strong id="obNeedVal">30 000 kr/mån</strong>
+        </div>
+      </label>
+      <p class="ob-hint" style="margin:8px 0 0">Det här är pengarna du faktiskt får i handen att leva på — inte bruttolön.</p>
     </div>
 
     <!-- Steg 5: Rekommendation (fylls dynamiskt av onboarding.js) -->
@@ -707,9 +700,9 @@
   <span class="reset-fab-icon">↺</span> Ta om frågorna
 </button>
 
-<script src="kommunalskatt.js?v=27"></script>
-<script src="market_history.js?v=27"></script>
-<script src="onboarding.js?v=27"></script>
-<script src="app.js?v=27"></script>
+<script src="kommunalskatt.js?v=30"></script>
+<script src="market_history.js?v=30"></script>
+<script src="onboarding.js?v=30"></script>
+<script src="app.js?v=30"></script>
 </body>
 </html>
