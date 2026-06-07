@@ -24,6 +24,19 @@ Tre KRITISKA fel hittade & fixade i decumulation-loopen:
 **Oberoende re-implementation matchar `simulate()` exakt till kronan.**
 Depå-uttag grossas upp för 30% reavinst (antagen 50% vinstandel — #21b).
 
+## Engine A — historisk backtesting
+
+- **Data:** MSCI World + MSCI World ex-USA, gross USD nominell, 1970–2025
+  (verifierad: Wikipedia + upmyinterest). 1973 World −14,51% → real −16,2% ✓.
+- **Metod:** rullande fönster över uttagsfasen. Ackumulering deterministisk,
+  uttag replayar varje historiskt fönster → sequence-of-returns-risk (Clare 2017).
+- 🟡 **Nominell USD, ej SEK:** ingen valutajustering (USD/SEK), deflateras med
+  användarens konstanta inflation (ej årsvis US-CPI). Fångar avkastnings-SEKVENSEN
+  men inte exakt SEK-realavkastning — en approximation för svensk investerare.
+- 🔴 **Svensk SIXRX-serie saknas:** chart-/bot-låst på alla testade källor. Lades
+  medvetet INTE in med gissad data. Slidern blandar World ↔ World ex-USA tills
+  verifierad svensk serie finns.
+
 ---
 
 ## Avkastning & simulering

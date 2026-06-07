@@ -864,6 +864,7 @@ function recalc() {
   renderShock(inputs);
   renderFeeDrag();
   renderWithdrawalOpt(inputs);
+  renderBacktest();
 
   // Synka reverseAge med retire om användaren inte rört den
   const raInput = $("reverseAge");
@@ -1615,6 +1616,73 @@ function renderWithdrawalOpt(inputs) {
   };
 }
 
+// ─── Engine A: Historisk backtesting (rullande fönster) ──────────────────────
+// Testar planen mot faktiska historiska avkastningssekvenser. Ackumulering
+// deterministisk; uttagsfasen replayar varje historiskt fönster (sequence risk).
+// allocWorld = andel MSCI World (resten = World ex-USA), 0..1.
+function runBacktest(inputs, allocWorld) {
+  const hist = window.MARKET_HISTORY;
+  if (!hist) return null;
+  const wWorld = hist.world.returns;
+  const wOther = hist.worldExUs.returns;
+  const years = Object.keys(wWorld).map(Number).sort((a, b) => a - b);
+  const firstY = years[0], lastY = years[years.length - 1];
+
+  const inf = inputs.inflation / 100;
+  const retireIdx  = inputs.retire - inputs.age;
+  const planYears  = inputs.lifespan - inputs.age;
+  const decumYears = inputs.lifespan - inputs.retire;
+  if (decumYears < 1) return null;
+
+  let windows = 0, survived = 0;
+  const failYears = [];
+
+  for (let startY = firstY; startY + decumYears <= lastY + 1; startY++) {
+    const ret = [];
+    for (let i = 0; i <= planYears; i++) {
+      if (i < retireIdx) {
+        ret.push(inputs.realReturn / 100);            // ackumulering: deterministisk real
+      } else {
+        const hy = startY + (i - retireIdx);
+        const nomBlend = allocWorld * wWorld[hy] + (1 - allocWorld) * wOther[hy];
+        ret.push((1 + nomBlend) / (1 + inf) - 1);      // nominell → real
+      }
+    }
+    const sim = simulate(inputs, { returnOverride: ret });
+    windows++;
+    if (!sim.ran_dry) survived++; else failYears.push(startY);
+  }
+  return { successRate: windows ? survived / windows : 0, windows, survived, failYears,
+           decumYears, firstY, lastY };
+}
+
+function renderBacktest() {
+  const el = document.getElementById("backtestResult");
+  if (!el) return;
+  const inputs = getInputs();
+  const lifestyle = activeTier ? TIER_LIFESTYLE[activeTier] : { sideIncomeRatio: 0, untilAge: 0 };
+  const allocWorld = (+document.getElementById("allocSlider")?.value || 100) / 100;
+  // applicera livsstil
+  const inp = { ...inputs };
+  const bt = runBacktest(inp, allocWorld);
+  if (!bt) { el.innerHTML = ""; return; }
+
+  const pct = Math.round(bt.successRate * 100);
+  const cls = pct >= 90 ? "good" : pct >= 75 ? "ok" : "warn";
+  const lbl = document.getElementById("allocLabel");
+  if (lbl) lbl.textContent = `${Math.round(allocWorld*100)}% global / ${Math.round((1-allocWorld)*100)}% ex-USA`;
+
+  el.innerHTML = `
+    <div class="bt-headline">
+      <span class="bt-pct ${cls}">${pct}%</span>
+      <span class="bt-sub">av ${bt.windows} historiska ${bt.decumYears}-årsperioder (${bt.firstY}–${bt.lastY}) klarade <strong>uttagsfasen</strong> utan att ta slut — givet att du når din målportfölj vid frihet. (Monte Carlo ovan testar även om du <em>når</em> dit.)</span>
+    </div>
+    ${bt.failYears.length
+      ? `<div class="bt-fails">Tog slut om uttaget startade år: <strong>${bt.failYears.join(", ")}</strong> — då en stor nedgång kom tidigt i uttagsfasen (sekvensrisk).</div>`
+      : `<div class="bt-ok">Klarade samtliga historiska startår — inklusive de värsta (1973–74, 2000, 2008).</div>`}
+  `;
+}
+
 // ─── SR lookup-tabell ─────────────────────────────────────────────────────────
 // Räknar MC för retire-åldrar från age+5 till 72 med steg 3.
 // ~13 datapunkter × 124ms ≈ 1.6s, körs en gång i bakgrunden.
@@ -1791,6 +1859,8 @@ $("srSlider")?.addEventListener("input", () => {
   $("srSlider")._userMoved = true;
   updateSrSliderDisplay();
 });
+
+document.getElementById("allocSlider")?.addEventListener("input", renderBacktest);
 
 // Avancerade inställningar toggle
 // ISK vs AF: wire inputs
