@@ -493,13 +493,16 @@ body {
   gap: 32px;
   margin-top: 32px;
 }
-@media (max-width: 900px) { .calc { grid-template-columns: 1fr; } }
+/* minmax(0,1fr) hindrar grid-blowout: kolumnen får krympa under barnens
+   min-content istället för att svämma över på smala skärmar. */
+@media (max-width: 900px) { .calc { grid-template-columns: minmax(0, 1fr); } }
 
 .calc-inputs, .calc-output {
   background: var(--cream-50);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 28px;
+  min-width: 0;   /* tillåt krympning i grid-cellen (annars blowout på mobil) */
 }
 .calc-inputs h3 {
   font-family: var(--serif);
@@ -563,10 +566,10 @@ body {
 }
 
 .result-row {
-  display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 12px;
+  display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px;
   margin-bottom: 28px;
 }
-@media (max-width: 700px) { .result-row { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 460px) { .result-row { grid-template-columns: 1fr; } }
 .metric {
   padding: 16px 20px;
   background: var(--cream-100);
@@ -945,16 +948,18 @@ canvas {
 }
 .isk-af-inputs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin: 16px 0;
 }
-@media (max-width: 700px) { .isk-af-inputs { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px) { .isk-af-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .isk-af-input-label {
   display: flex; flex-direction: column; gap: 4px;
   font-size: 12px; color: var(--ink-400); font-weight: 500;
+  min-width: 0;
 }
 .isk-af-input-label input {
+  width: 100%; min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1299,4 +1304,83 @@ body.ob-active .reset-fab { display: none; }
 
 @media (max-width: 560px) {
   .reset-fab { right: 12px; bottom: 12px; padding: 10px 14px; font-size: 13px; }
+  .reset-fab .reset-fab-label { display: none; }   /* bara ↺-ikonen på små skärmar */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILANPASSNING — samlad responsiv finputsning
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Surfplatta / liten laptop */
+@media (max-width: 760px) {
+  .container { padding: 0 18px; }
+  .hero { padding: 64px 0 72px; }
+  .band { padding: 60px 0; }
+  .nav-links { gap: 18px; }
+  .nav-links a { font-size: 14px; }
+  .plan-hero { gap: 18px; }
+}
+
+/* Mobil (telefon i stående) */
+@media (max-width: 560px) {
+  .container { padding: 0 14px; }
+
+  /* Nav: göm sektionslänkarna, behåll logga + CTA */
+  .nav-links { display: none; }
+  .nav-inner { padding-top: 12px; padding-bottom: 12px; }
+  .brand { font-size: 21px; }
+  .nav .btn-ghost { padding: 9px 16px; font-size: 14px; }
+
+  /* Hero */
+  .hero { padding: 44px 0 52px; }
+  .lead { font-size: 16px; }
+  .hero-quote { margin-top: 36px; font-size: 16px; }
+  .hero-cta { gap: 14px; }
+  .hero-cta .btn { width: 100%; text-align: center; }
+
+  /* Band-rubriker tätare */
+  .band { padding: 48px 0; }
+  .section-sub { margin-bottom: 32px; }
+
+  /* Kalkylator-paneler: mindre padding ger mer plats */
+  .calc { gap: 20px; margin-top: 20px; }
+  .calc-inputs, .calc-output { padding: 18px 16px; }
+
+  /* Plan-hero (score) staplas redan; centrera snyggt */
+  .plan-hero { flex-direction: column; text-align: center; padding: 22px 18px; }
+  .plan-hero .answer-hero-age { font-size: 40px; }
+
+  /* Score-delar i en kolumn för läsbarhet */
+  .score-parts { grid-template-columns: 1fr; gap: 10px; }
+
+  /* Resultat-metrik i en kolumn */
+  .result-row { grid-template-columns: 1fr; }
+
+  /* Ålder-hero: låt items få plats, mindre fält */
+  .age-hero { padding: 16px 14px; gap: 8px; flex-wrap: wrap; }
+  .age-hero-item { gap: 6px; }
+  .age-hero-input { width: 58px !important; font-size: 24px !important; }
+  .age-hero-label { font-size: 12px; }
+
+  /* SR-slider footer staplar knapp under text */
+  .sr-slider-footer { gap: 10px; }
+  .sr-apply { width: 100%; }
+
+  /* Uttagsoptimering: kort + knapp staplas */
+  .wo-opt-card { min-width: 0; width: 100%; }
+  .wo-apply { width: 100%; }
+
+  /* Backtest-jämförelse i en kolumn på riktigt smala skärmar */
+  .compare-row { grid-template-columns: 1fr; }
+
+  /* Filosofi-citat / microcopy tätare */
+  .microcopy { padding: 14px 16px; font-size: 13px; }
+}
+
+/* Extra smal (≤380px) */
+@media (max-width: 380px) {
+  .hero h1 { font-size: 34px; }
+  .age-hero-input { width: 52px !important; font-size: 21px !important; }
+  .plan-hero .answer-hero-age { font-size: 34px; }
+  .score-num { font-size: 36px; }
 }
