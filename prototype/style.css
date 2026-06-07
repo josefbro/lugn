@@ -747,6 +747,8 @@ input[type="range"]#srSlider:disabled { opacity: .4; cursor: not-allowed; }
   border-radius: var(--radius-sm);
   padding: 16px;
 }
+.chart-full { margin-bottom: 16px; }
+.chart-full canvas { width: 100%; height: auto; }
 .chart-panel h4 {
   font-family: var(--serif);
   font-size: 15px; font-weight: 600;

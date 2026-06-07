@@ -210,7 +210,8 @@ function simulate(inputs, opts = {}) {
     const pensionGross = tjpInc + premieInc + inkomstInc;
 
     // Mid-year-konvention: halv årsavkastning före flöden, halv efter.
-    const g = Math.sqrt(1 + nom);
+    // Klampa: en årsavkastning kan aldrig vara < −100% (annars √(neg) = NaN).
+    const g = Math.sqrt(Math.max(0.001, 1 + nom));
     isk *= g; kf *= g; depa *= g;
 
     let bridgeDraw = 0, tax = 0, pensionNet = pensionGross;
@@ -323,7 +324,9 @@ function runMonteCarlo(inputs, opts = {}) {
       const age = inputs.age + i;
       const mu  = _glidbana ? expectedRealReturnAtAge(age, inputs) : baseMu;
       const sig = volAtAge(age);
-      return mu + randStudentT() * sig;
+      // Klampa till realistiskt spann: ingen bred aktiemarknad har gjort
+      // sämre än ~−60% eller bättre än ~+100% ett enskilt år (real).
+      return Math.max(-0.60, Math.min(1.0, mu + randStudentT() * sig));
     });
     const res = simulate(inputs, { ...opts, returnOverride: ret });
     if (!res.ran_dry) successes++;

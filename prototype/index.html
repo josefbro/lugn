@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=22">
-<link rel="stylesheet" href="onboarding.css?v=22">
+<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="onboarding.css?v=23">
 </head>
 <body>
 
@@ -503,27 +503,27 @@
             <p id="tierNote">Klicka en nivå ovan för förklaring och simulering.</p>
           </div>
 
-          <div class="charts-wrap">
-            <div class="chart-panel">
-              <h4>Portföljens livscykel <span class="chart-sub">— sparande &amp; uttag</span></h4>
-              <p class="chart-help">Portföljen toppar vid frihet och trappas ner under uttag. Grönt fält = 5 000 banor (p10–p90). Når p10 noll = vissa banor tar slut.</p>
-              <canvas id="accumChart" width="680" height="230"></canvas>
-              <div class="legend">
-                <span class="leg-dot" style="background:#3a5a40"></span> Median
-                <span class="leg-dot" style="background:#3a5a4030; width:16px; border-radius:2px"></span> p10–p90 spann
-                <span class="leg-dot" style="background:#c46d4d"></span> frihet
-              </div>
+          <!-- Portföljens livscykel — stor fullbredds-graf -->
+          <div class="chart-panel chart-full">
+            <h4>Portföljens livscykel <span class="chart-sub">— sparande &amp; uttag</span></h4>
+            <p class="chart-help">Portföljen toppar vid frihet och trappas ner under uttag. Grönt fält = 5 000 banor (p10–p90). Når p10 noll = vissa banor tar slut.</p>
+            <canvas id="accumChart" width="1120" height="340"></canvas>
+            <div class="legend">
+              <span class="leg-dot" style="background:#3a5a40"></span> Median
+              <span class="leg-dot" style="background:#3a5a4030; width:16px; border-radius:2px"></span> p10–p90 spann
+              <span class="leg-dot" style="background:#c46d4d"></span> frihet
             </div>
-            <div class="chart-panel">
-              <h4>Pensions-brygga <span class="chart-sub">— uttagsfas</span></h4>
-              <p class="chart-help">Varje inkomstkälla tas ut så tidigt den får: TJP från 55, allmän från 63. Bridge-pott (ISK/depå) fyller gapet upp till ditt behov.</p>
-              <canvas id="bridgeChart" width="680" height="230"></canvas>
-              <div class="legend">
-                <span class="leg-dot" style="background:#3a5a40"></span> Inkomstpension
-                <span class="leg-dot" style="background:#588157"></span> Premiepension
-                <span class="leg-dot" style="background:#a3b18a"></span> Tjänstepension
-                <span class="leg-dot" style="background:#c46d4d"></span> Bridge-pott
-              </div>
+          </div>
+
+          <div class="chart-panel chart-full">
+            <h4>Pensions-brygga <span class="chart-sub">— uttagsfas</span></h4>
+            <p class="chart-help">Varje inkomstkälla tas ut så tidigt den får: TJP från 55, allmän från 63. Bridge-pott (ISK/depå) fyller gapet upp till ditt behov.</p>
+            <canvas id="bridgeChart" width="1120" height="240"></canvas>
+            <div class="legend">
+              <span class="leg-dot" style="background:#3a5a40"></span> Inkomstpension
+              <span class="leg-dot" style="background:#588157"></span> Premiepension
+              <span class="leg-dot" style="background:#a3b18a"></span> Tjänstepension
+              <span class="leg-dot" style="background:#c46d4d"></span> Bridge-pott
             </div>
           </div>
 
@@ -701,9 +701,9 @@
 </footer>
 
 <datalist id="kommunList"></datalist>
-<script src="kommunalskatt.js?v=22"></script>
-<script src="market_history.js?v=22"></script>
-<script src="onboarding.js?v=22"></script>
-<script src="app.js?v=22"></script>
+<script src="kommunalskatt.js?v=23"></script>
+<script src="market_history.js?v=23"></script>
+<script src="onboarding.js?v=23"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>
