@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=13">
-<link rel="stylesheet" href="onboarding.css?v=13">
+<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="onboarding.css?v=14">
 </head>
 <body>
 
@@ -581,13 +581,13 @@
             <h4 class="bt-title">Historiskt stresstest <span class="chart-sub">— verklig historik 1970–2025</span></h4>
             <p class="chart-help">Monte Carlo simulerar slumpade framtider. Detta testar din plan mot <strong>faktiska</strong> historiska avkastningssekvenser — inklusive de värsta starterna (1973–74, 2000, 2008). Klassisk rullande-fönster-metod (Clare et al. 2017).</p>
             <div class="alloc-row">
-              <span class="alloc-end">Global<br><small>MSCI World</small></span>
+              <span class="alloc-end">International<br><small>MSCI World</small></span>
               <input type="range" id="allocSlider" min="0" max="100" value="100" step="5">
-              <span class="alloc-end">Utan USA<br><small>World ex-USA</small></span>
+              <span class="alloc-end">Sverige<br><small>SIXRX</small></span>
             </div>
-            <div class="alloc-current" id="allocLabel">100% global</div>
+            <div class="alloc-current" id="allocLabel">100% international</div>
             <div id="backtestResult"></div>
-            <p class="bt-note">Data: MSCI World + World ex-USA, gross USD (Wikipedia/upmyinterest). Svensk SIXRX-serie kommer — se nedan.</p>
+            <p class="bt-note">Data: MSCI World (gross USD, 1970–2025) + Stockholmsbörsen SIXRX (SEK inkl utdelningar, 1900–2024, källa RikaTillsammans). Nominell — deflateras med ditt inflationsantagande.</p>
           </div>
 
           <!-- Uttagsoptimering (skiktgräns) -->
@@ -681,9 +681,9 @@
 </footer>
 
 <datalist id="kommunList"></datalist>
-<script src="kommunalskatt.js?v=13"></script>
-<script src="market_history.js?v=13"></script>
-<script src="onboarding.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="kommunalskatt.js?v=14"></script>
+<script src="market_history.js?v=14"></script>
+<script src="onboarding.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

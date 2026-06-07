@@ -1620,13 +1620,26 @@ function renderWithdrawalOpt(inputs) {
 // Testar planen mot faktiska historiska avkastningssekvenser. Ackumulering
 // deterministisk; uttagsfasen replayar varje historiskt fönster (sequence risk).
 // allocWorld = andel MSCI World (resten = World ex-USA), 0..1.
+// allocWorld = andel International (MSCI World), resten = Sverige (SIXRX).
 function runBacktest(inputs, allocWorld) {
   const hist = window.MARKET_HISTORY;
   if (!hist) return null;
   const wWorld = hist.world.returns;
-  const wOther = hist.worldExUs.returns;
-  const years = Object.keys(wWorld).map(Number).sort((a, b) => a - b);
-  const firstY = years[0], lastY = years[years.length - 1];
+  const wSwe   = hist.sweden.returns;
+
+  // Blandad nominell avkastning för ett år, eller null om data saknas i mixen.
+  const needWorld = allocWorld > 0, needSwe = allocWorld < 1;
+  const blend = (y) => {
+    if (needWorld && wWorld[y] == null) return null;
+    if (needSwe   && wSwe[y]   == null) return null;
+    return allocWorld * (wWorld[y] ?? 0) + (1 - allocWorld) * (wSwe[y] ?? 0);
+  };
+
+  // Tillgängligt år-spann beroende på vilka serier som behövs
+  const allYears = new Set([...Object.keys(wWorld), ...Object.keys(wSwe)].map(Number));
+  const avail = [...allYears].filter(y => blend(y) != null).sort((a, b) => a - b);
+  if (avail.length < 5) return null;
+  const firstY = avail[0], lastY = avail[avail.length - 1];
 
   const inf = inputs.inflation / 100;
   const retireIdx  = inputs.retire - inputs.age;
@@ -1639,15 +1652,17 @@ function runBacktest(inputs, allocWorld) {
 
   for (let startY = firstY; startY + decumYears <= lastY + 1; startY++) {
     const ret = [];
+    let ok = true;
     for (let i = 0; i <= planYears; i++) {
       if (i < retireIdx) {
         ret.push(inputs.realReturn / 100);            // ackumulering: deterministisk real
       } else {
-        const hy = startY + (i - retireIdx);
-        const nomBlend = allocWorld * wWorld[hy] + (1 - allocWorld) * wOther[hy];
-        ret.push((1 + nomBlend) / (1 + inf) - 1);      // nominell → real
+        const b = blend(startY + (i - retireIdx));
+        if (b == null) { ok = false; break; }          // hoppa fönster med datagap
+        ret.push((1 + b) / (1 + inf) - 1);             // nominell → real
       }
     }
+    if (!ok) continue;
     const sim = simulate(inputs, { returnOverride: ret });
     windows++;
     if (!sim.ran_dry) survived++; else failYears.push(startY);
@@ -1670,7 +1685,7 @@ function renderBacktest() {
   const pct = Math.round(bt.successRate * 100);
   const cls = pct >= 90 ? "good" : pct >= 75 ? "ok" : "warn";
   const lbl = document.getElementById("allocLabel");
-  if (lbl) lbl.textContent = `${Math.round(allocWorld*100)}% global / ${Math.round((1-allocWorld)*100)}% ex-USA`;
+  if (lbl) lbl.textContent = `${Math.round(allocWorld*100)}% international / ${Math.round((1-allocWorld)*100)}% Sverige`;
 
   el.innerHTML = `
     <div class="bt-headline">
