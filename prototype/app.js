@@ -56,12 +56,66 @@ function iskTax(balance, otherKf = 0) {
 
 let _kommunalskatt = 0.332;   // default = riksgenomsnitt 2026 (33,2%)
 
-function lonTax(income, age) {
-  if (income <= 0) return 0;
-  const ga = age >= 65 ? 60_000 : 40_000;
-  const t = Math.max(0, income - ga);
-  return t * _kommunalskatt + Math.max(0, t - 643_100) * 0.20;
+// ─── Inkomstskatt — Skatteverkets metod (SKV 433, inkomstår 2026) ─────────────
+// Verifierat mot teknisk beskrivning SKV 433 utgåva 36 (2025-12-10):
+// PBB 2026 = 59 200; skiktgräns (beskattningsbar) = 643 000, statlig 20 % däröver.
+const PBB_2026       = 59_200;
+const SKIKTGRANS_2026 = 643_000;
+
+// Ordinarie grundavdrag (kr) som funktion av fastställd förvärvsinkomst.
+function grundavdragOrd(x) {
+  const p = PBB_2026;
+  if (x <= 0.99 * p) return 0.423 * p;
+  if (x <= 2.72 * p) return 0.423 * p + 0.20 * (x - 0.99 * p);
+  if (x <= 3.11 * p) return 0.77 * p;
+  if (x <= 7.88 * p) return 0.77 * p - 0.10 * (x - 3.11 * p);
+  return 0.293 * p;
 }
+// Förhöjt grundavdrag (TILLÄGG ovanpå ordinarie) för den som fyllt 66 vid årets ingång.
+function grundavdragForhojt(x) {
+  const p = PBB_2026;
+  let f;
+  if      (x <= 0.91 * p)  f = 0.687 * p;
+  else if (x <= 1.11 * p)  f = 0.885 * p - 0.20 * x;
+  else if (x <= 1.965 * p) f = 0.600 * p + 0.057 * x;
+  else if (x <= 2.72 * p)  f = 0.333 * p + 0.1949 * x;
+  else if (x <= 3.11 * p)  f = 0.3949 * x - 0.212 * p;
+  else if (x <= 3.24 * p)  f = 0.4949 * x - 0.523 * p;
+  else if (x <= 5.00 * p)  f = 0.356 * x - 0.073 * p;
+  else if (x <= 7.88 * p)  f = 0.017 * p + 0.338 * x;
+  else if (x <= 8.08 * p)  f = 0.703 * p + 0.251 * x;
+  else if (x <= 11.16 * p) f = 2.732 * p;
+  else if (x <= 12.84 * p) f = 9.651 * p - 0.62 * x;
+  else                     f = 1.691 * p;
+  return Math.max(0, f);
+}
+// Jobbskatteavdrag (skattereduktion för arbetsinkomst), under 66 år. Reducerar
+// endast kommunalskatten. Avtrappningen för höga inkomster slopad fr.o.m. 2025.
+function jobbskatteavdrag(ai, gaOrd, kRate) {
+  const p = PBB_2026;
+  let base;
+  if      (ai <= 0.91 * p) base = ai - gaOrd;
+  else if (ai <= 3.24 * p) base = 0.91 * p + 0.3874 * (ai - 0.91 * p) - gaOrd;
+  else if (ai <= 8.08 * p) base = 1.813 * p + 0.251 * (ai - 3.24 * p) - gaOrd;
+  else                     base = 3.027 * p - gaOrd;
+  return Math.max(0, base) * kRate;
+}
+
+// Total kommunal + statlig inkomstskatt (kr/år). earned=true → arbetsinkomst
+// (jobbskatteavdrag); earned=false → pension/ej-arbete (inget jobbskatteavdrag).
+function incomeTax(income, age, earned = false) {
+  if (income <= 0) return 0;
+  const gaOrd = grundavdragOrd(income);
+  let ga = gaOrd + (age >= 66 ? grundavdragForhojt(income) : 0);
+  ga = Math.ceil(ga / 100) * 100;                       // avrundas uppåt till hundratal
+  const taxable  = Math.max(0, income - ga);
+  const kommunal = taxable * _kommunalskatt;
+  const statlig  = Math.max(0, taxable - SKIKTGRANS_2026) * 0.20;
+  const jsa = (earned && age < 66) ? jobbskatteavdrag(income, gaOrd, _kommunalskatt) : 0;
+  return Math.max(0, kommunal - jsa) + statlig;
+}
+// Bakåtkompatibelt alias: pensionsinkomst (ingen jobbskatteavdrag).
+function lonTax(income, age) { return incomeTax(income, age, false); }
 
 // Kommunalskatt: slå upp vald kommun (data i kommunalskatt.js), annars snitt.
 function getKommunalskatt() {
@@ -857,7 +911,7 @@ function getInputs() {
   const ptPct   = +($("partTimePct")?.value || 0);
   const ptUntil = +($("partTimeUntil")?.value || 0);
   const salaryY = numv("salary") * (ptPct / 100) * 12;
-  const sideIncomeAnnual = ptPct > 0 ? Math.max(0, salaryY - lonTax(salaryY, age)) : 0;
+  const sideIncomeAnnual = ptPct > 0 ? Math.max(0, salaryY - incomeTax(salaryY, age, true)) : 0;
   return {
     age,
     retire:         +$("retire").value,
@@ -931,7 +985,7 @@ function updatePartTimeUI() {
   if (!hint) return;
   if (pct > 0) {
     const grossY = numv("salary") * (pct / 100) * 12;
-    const netM   = Math.max(0, grossY - lonTax(grossY, +$("age").value)) / 12;
+    const netM   = Math.max(0, grossY - incomeTax(grossY, +$("age").value, true)) / 12;
     const until  = +($("partTimeUntil")?.value || 0);
     hint.style.display = "";
     hint.innerHTML = numv("salary") > 0
@@ -1721,7 +1775,7 @@ function renderFeeDrag() {
 // Brytpunkt = gross-inkomst där 20% statlig börjar. Pensionärer 66+ har
 // förhöjt grundavdrag → högre brytpunkt än arbetande. (Verifiera årligen.)
 const BRYTPUNKT_ARBETANDE  = 660_400;   // < 66 år
-const BRYTPUNKT_PENSIONAR  = 733_200;   // 66+ (förhöjt grundavdrag)
+const BRYTPUNKT_PENSIONAR  = 751_100;   // 66+ (förhöjt grundavdrag), 2026
 
 // Real annuitet (dagens penningvärde) — 1% real avkastning under utbetalning.
 function tjpAnnuityReal(pottToday, period) {
@@ -1782,7 +1836,7 @@ function estimateExpensesToday(inputs) {
   const salary = numv("salary");
   if (salary <= 0) return inputs.needPerMonth;
   const annualGross = salary * 12;
-  const netMonthly  = (annualGross - lonTax(annualGross, inputs.age)) / 12;
+  const netMonthly  = (annualGross - incomeTax(annualGross, inputs.age, true)) / 12;
   return Math.max(0, Math.round((netMonthly - inputs.savingsPerMonth) / 100) * 100);
 }
 

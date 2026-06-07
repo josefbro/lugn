@@ -194,3 +194,24 @@ Matas till bygg-agenter för att eliminera hallucination. Verifiera siffror årl
 - Skatteverket digitala samarbeten: https://www.skatteverket.se/omoss/digitalasamarbeten.4.3684199413c956649b56298.html
 - Skatteverket statlig skatt: https://www.skatteverket.se/privat/etjansterochblanketter/svarpavanligafragor/inkomstavtjanst/
 - PWL Capital research: Ben Felix / Braden Warwick
+
+### Inkomstskatt — Skatteverkets metod (SKV 433, inkomstår 2026)
+Verifierat mot teknisk beskrivning SKV 433 utgåva 36 (2025-12-10). PBB 2026 = 59 200 kr.
+Implementerat i `incomeTax(income, age, earned)` i app.js.
+
+- **Ordinarie grundavdrag** (kr, x = förvärvsinkomst): ≤0,99 PBB → 0,423 PBB; 0,99–2,72 →
+  0,423 PBB + 20 %·(x−0,99 PBB); 2,72–3,11 → 0,77 PBB; 3,11–7,88 → 0,77 PBB − 10 %·(x−3,11 PBB);
+  ≥7,88 PBB → 0,293 PBB. Avrundas (summan) uppåt till hundratal.
+- **Förhöjt grundavdrag (66+)**: TILLÄGG ovanpå ordinarie, 12 intervall (0,687 PBB upp till
+  max 2,732 PBB vid 478 336–660 672, sen nedtrappning). Summeras med ordinarie.
+- **Jobbskatteavdrag** (skattereduktion arbetsinkomst, <66): ≤0,91 PBB → (AI−GA)·KI;
+  0,91–3,24 → (0,91 PBB + 38,74 %·(AI−0,91 PBB) − GA)·KI; 3,24–8,08 → (1,813 PBB +
+  25,10 %·(AI−3,24 PBB) − GA)·KI; ≥8,08 → (3,027 PBB − GA)·KI. Endast mot kommunalskatt.
+  Avtrappning för höga inkomster slopad fr.o.m. 2025.
+- **Statlig skatt**: 20 % på beskattningsbar inkomst över skiktgränsen 643 000 (brytpunkt
+  660 400; 66+ 751 100).
+- **Pension** = ej arbetsinkomst → grundavdrag (+förhöjt 66+) men INGET jobbskatteavdrag.
+  Därför betalar en tidig pensionär (≤65) markant mer skatt än en 66+ på samma belopp.
+- Validerat mot publika kalkylatorer: lön 40k/mån @32 % → ~8 320 skatt/mån; pension 25k @67
+  → ~4 520; samma pension @60 → ~7 360 (≈2 840 kr/mån dyrare utan förhöjt GA).
+- Källa: Skatteverket SKV 433 utg. 36, belopp och procent 2026.
