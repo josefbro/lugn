@@ -410,37 +410,22 @@ body {
 .age-hero-unit { font-size: 13px; color: var(--sage-300); }
 
 /* === LIVSSTIL-CHIPS === */
-.lifestyle-section { margin-bottom: 20px; }
-.lifestyle-label {
-  font-size: 13px; font-weight: 500;
-  color: var(--ink-600); margin-bottom: 10px;
+/* Önskad inkomst som fri/pensionär (ersätter livsstils-chipsen) */
+.need-section { margin-bottom: 20px; }
+.need-input-label {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  font-size: 14px; color: var(--ink-600);
 }
-.lifestyle-chips {
-  display: flex; gap: 8px; flex-wrap: wrap;
-}
-.lchip {
-  flex: 1; min-width: 72px;
-  padding: 10px 8px;
-  background: var(--cream-100);
+.need-input-label > span { font-weight: 500; }
+.need-input-label input {
+  width: 130px; text-align: right;
+  padding: 8px 10px;
+  font-size: 15px; font-family: var(--sans);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  font-size: 12px; font-family: var(--sans);
-  text-align: center; cursor: pointer;
-  transition: all .15s; line-height: 1.35;
+  background: #fff;
 }
-.lchip small { font-size: 11px; color: var(--ink-400); }
-.lchip:hover { border-color: var(--sage-700); }
-.lchip-selected {
-  background: var(--sage-700) !important;
-  border-color: var(--sage-700) !important;
-  color: var(--cream-50) !important;
-}
-.lchip-selected small { color: rgba(255,255,255,.7) !important; }
-.custom-need-label {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 14px; color: var(--ink-600);
-  padding: 10px 0;
-}
+.need-hint { font-size: 12px; color: var(--ink-400); margin: 8px 0 0; }
 
 /* === PERSON-CENTRERAT SVAR === */
 .answer-hero {

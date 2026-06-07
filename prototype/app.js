@@ -2043,40 +2043,10 @@ function updateSrSliderDisplay() {
   }
 }
 
-// ─── Livsstil-chips ────────────────────────────────────────────────────────────
-function setupLifestyleChips() {
-  const chips     = document.querySelectorAll(".lchip");
-  const hidden    = $("needPerMonth");
-  const customWrap = $("customNeedWrap");
-  const customIn   = $("customNeedInput");
-
-  chips.forEach(chip => {
-    chip.addEventListener("click", () => {
-      chips.forEach(c => c.classList.remove("lchip-selected"));
-      chip.classList.add("lchip-selected");
-      const need = chip.dataset.need;
-      if (need === "custom") {
-        customWrap.style.display = "";
-        if (customIn) {
-          customIn.focus();
-          hidden.value = customIn.value || 35000;
-        }
-      } else {
-        customWrap.style.display = "none";
-        hidden.value = need;
-        $("customNeedLabel").textContent = `${(+need/1000).toFixed(0)} 000 / mån`;
-      }
-      recalc();
-    });
-  });
-
-  // Synka custom input
-  customIn?.addEventListener("input", () => {
-    hidden.value = customIn.value;
-    $("customNeedLabel").textContent = `${Math.round(customIn.value/1000)} 000 / mån`;
-    recalc();
-  });
-}
+// ─── Önskad inkomst ────────────────────────────────────────────────────────────
+// Livsstils-chipsen är borttagna — behovet anges direkt i kr/mån (#needPerMonth),
+// som redan är wired till recalc via den generella input-lyssnaren nedan.
+function setupLifestyleChips() { /* deprecated: inga chips längre */ }
 
 // ─── Wire up inputs ───────────────────────────────────────────────────────────
 document.querySelectorAll("input, select").forEach(el => {

@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=30">
-<link rel="stylesheet" href="onboarding.css?v=30">
+<link rel="stylesheet" href="style.css?v=31">
+<link rel="stylesheet" href="onboarding.css?v=31">
 </head>
 <body>
 
@@ -269,24 +269,13 @@
             </div>
           </div>
 
-          <!-- Livsstil-chips -->
-          <div class="lifestyle-section">
-            <div class="lifestyle-label">Vilken livsstil siktar du på?</div>
-            <div class="lifestyle-chips" id="lifestyleChips">
-              <button class="lchip" data-need="20000" type="button">Minimalt<br><small>20 000 / mån</small></button>
-              <button class="lchip" data-need="25000" type="button">Lean<br><small>25 000 / mån</small></button>
-              <button class="lchip lchip-selected" data-need="35000" type="button">FIRE<br><small>35 000 / mån</small></button>
-              <button class="lchip" data-need="55000" type="button">Fat FIRE<br><small>55 000 / mån</small></button>
-              <button class="lchip lchip-custom" data-need="custom" type="button">Eget<br><small id="customNeedLabel">— / mån</small></button>
-            </div>
-            <div id="customNeedWrap" style="display:none">
-              <label class="custom-need-label">
-                <span>Ditt behov / mån</span>
-                <input type="number" id="customNeedInput" value="35000" step="1000">
-              </label>
-            </div>
-            <!-- Dolt input som synkroniseras med livsstil-chips -->
-            <input type="number" id="needPerMonth" value="35000" style="display:none">
+          <!-- Önskad inkomst som fri/pensionär -->
+          <div class="need-section">
+            <label class="need-input-label">
+              <span>Vill kunna leva på <span class="input-hint">per månad, efter skatt</span></span>
+              <input type="number" id="needPerMonth" value="30000" step="1000">
+            </label>
+            <p class="need-hint">Pengarna du faktiskt får i handen att leva på som fri — inte bruttolön.</p>
           </div>
 
           <h3>Dina pengar</h3>
@@ -700,9 +689,9 @@
   <span class="reset-fab-icon">↺</span> Ta om frågorna
 </button>
 
-<script src="kommunalskatt.js?v=30"></script>
-<script src="market_history.js?v=30"></script>
-<script src="onboarding.js?v=30"></script>
-<script src="app.js?v=30"></script>
+<script src="kommunalskatt.js?v=31"></script>
+<script src="market_history.js?v=31"></script>
+<script src="onboarding.js?v=31"></script>
+<script src="app.js?v=31"></script>
 </body>
 </html>
