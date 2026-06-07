@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=40">
-<link rel="stylesheet" href="onboarding.css?v=40">
+<link rel="stylesheet" href="style.css?v=41">
+<link rel="stylesheet" href="onboarding.css?v=41">
 </head>
 <body>
 
@@ -293,8 +293,12 @@
             <span>Bostadens värde <span class="input-hint">för belåningsgrad</span></span>
             <input type="number" id="propertyValue" value="0" step="100000">
           </label>
+          <label class="calc-slider-row">
+            <span>Belåningsgrad <strong id="ltvVal">0 %</strong> <span class="input-hint">dra för att räkna fram lånet (max 90 %)</span></span>
+            <input type="range" id="ltvSlider" min="0" max="90" value="0" step="1">
+          </label>
           <label>
-            <span>Kvarvarande bolån</span>
+            <span>Kvarvarande bolån <span class="input-hint">från belåningsgrad</span></span>
             <input type="number" id="loanBalance" value="0" step="50000">
           </label>
           <label>
@@ -302,7 +306,7 @@
             <input type="number" id="loanRate" value="3.5" step="0.1">
           </label>
           <label>
-            <span>Amorterar per månad</span>
+            <span>Amorterar per månad <span class="input-hint">auto = lagkravet</span></span>
             <input type="number" id="loanAmort" value="0" step="500">
           </label>
 
@@ -729,9 +733,9 @@
   <span class="reset-fab-icon">↺</span><span class="reset-fab-label"> Ta om frågorna</span>
 </button>
 
-<script src="kommunalskatt.js?v=40"></script>
-<script src="market_history.js?v=40"></script>
-<script src="onboarding.js?v=40"></script>
-<script src="app.js?v=40"></script>
+<script src="kommunalskatt.js?v=41"></script>
+<script src="market_history.js?v=41"></script>
+<script src="onboarding.js?v=41"></script>
+<script src="app.js?v=41"></script>
 </body>
 </html>

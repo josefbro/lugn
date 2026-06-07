@@ -853,6 +853,33 @@ function amorteringskrav(loan, propertyValue) {
   return { ltv, pct, annual: pct * loan, monthly: pct * loan / 12 };
 }
 
+// Två-vägs-synk mellan belåningsgrad-slider och kvarvarande lån + autofyll amort.
+let _bolanSource = "ltv";   // "ltv" = slidern styr lånet, "loan" = användaren skrev lånet
+function syncBolan() {
+  const pv     = +($("propertyValue")?.value || 0);
+  const slider = $("ltvSlider");
+  const loanF  = $("loanBalance");
+  const amortF = $("loanAmort");
+  if (!slider || !loanF) return;
+
+  if (pv > 0) {
+    if (_bolanSource === "loan") {
+      const ltv = Math.max(0, Math.min(90, (+loanF.value || 0) / pv * 100));
+      slider.value = Math.round(ltv);
+    } else {
+      loanF.value = Math.round((+slider.value / 100) * pv / 1000) * 1000;   // jämn 1000-tal
+    }
+  }
+  const ltvEl = $("ltvVal");
+  if (ltvEl) ltvEl.textContent = `${Math.round(+slider.value)} %`;
+
+  // Amorteringen autofylls med lagkravet om användaren inte skrivit eget belopp
+  if (amortF && !amortF._userEdited) {
+    const krav = amorteringskrav(+(loanF.value || 0), pv);
+    amortF.value = krav ? Math.round(krav.monthly / 100) * 100 : 0;
+  }
+}
+
 function recalc() {
   _glidbana = !!document.getElementById("glidbana")?.checked;
   _kommunalskatt = getKommunalskatt();
@@ -866,6 +893,10 @@ function recalc() {
   if (amField && salaryVal > 0 && !amField._userEdited) {
     amField.value = Math.round(allmanAt65Full(salaryVal) * allmanFactor(retireVal));
   }
+
+  // ── Bolån: belåningsgrad-slidern styr kvarvarande lån; amortering autofylls med
+  //    lagkravet (ordinarie belåningsgradskrav) om användaren inte skrivit eget. ──
+  syncBolan();
 
   const inputs = getInputs();
 
@@ -1789,7 +1820,7 @@ function renderTrygghet() {
       const kravBtn = document.getElementById("kravApply");
       if (kravBtn) kravBtn.onclick = () => {
         const f = $("loanAmort");
-        if (f) { f.value = Math.round(krav.monthly / 100) * 100; recalc(); }
+        if (f) { f._userEdited = false; recalc(); }   // tillbaka till auto = lagkravet
       };
     }
   }
@@ -2249,6 +2280,7 @@ const TRYGG_FIELDS = new Set([
 document.querySelectorAll("input, select").forEach(el => {
   if (el.id === "customNeedInput") return;  // hanteras separat
   if (el.id === "allmanMonthly") return;    // hanteras separat (override-flagga)
+  if (el.id === "ltvSlider" || el.id === "loanBalance" || el.id === "loanAmort") return; // bolån separat
   if (TRYGG_FIELDS.has(el.id)) {
     if (el.id === "tryggExpenses") {
       el.addEventListener("input", () => { el._userEdited = !(!el.value || +el.value === 0); renderTrygghet(); });
@@ -2260,6 +2292,15 @@ document.querySelectorAll("input, select").forEach(el => {
   }
   el.addEventListener("input",  recalc);
   el.addEventListener("change", recalc);
+});
+
+// Bolån: tvåvägs-synk slider ↔ lån, + manuell amortering låser autofyllet
+$("ltvSlider")?.addEventListener("input", () => { _bolanSource = "ltv"; recalc(); });
+$("loanBalance")?.addEventListener("input", () => { _bolanSource = "loan"; recalc(); });
+$("loanAmort")?.addEventListener("input", () => {
+  const el = $("loanAmort");
+  el._userEdited = !(!el.value || +el.value === 0);   // tomt/0 → återgå till auto (lagkrav)
+  recalc();
 });
 
 // Tier-klick

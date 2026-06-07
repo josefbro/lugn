@@ -536,6 +536,16 @@ body {
   outline: none;
   border-color: var(--sage-700);
 }
+/* Slider-rad (t.ex. belåningsgrad): stapla etikett + fullbredds-reglage */
+.calc-inputs label.calc-slider-row {
+  flex-direction: column; align-items: stretch; gap: 8px;
+}
+.calc-slider-row > span { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.calc-slider-row strong { color: var(--sage-700); font-size: 16px; }
+.calc-slider-row input[type="range"] {
+  width: 100%; padding: 0; text-align: initial;
+  accent-color: var(--sage-700); cursor: pointer; background: transparent;
+}
 
 /* === OUTPUT === */
 .big-result {
