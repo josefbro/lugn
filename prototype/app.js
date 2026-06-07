@@ -2458,8 +2458,9 @@ function addBigExpRow(label = "", amount = "", age = "") {
   row.className = "bigexp-row";
   row.innerHTML = `
     <input type="text" class="bigexp-label" placeholder="t.ex. barnens bröllop" value="${label}">
-    <input type="text" inputmode="numeric" class="bigexp-amount" placeholder="kr" value="${amount}">
-    <input type="number" class="bigexp-age" placeholder="ålder" min="${+$("age").value}" max="100" value="${age}">
+    <input type="text" inputmode="numeric" class="bigexp-amount" placeholder="belopp kr" value="${amount}">
+    <span class="bigexp-at">vid</span>
+    <input type="number" class="bigexp-age" placeholder="år" min="${+$("age").value}" max="100" value="${age}">
     <button type="button" class="bigexp-del" title="Ta bort">×</button>`;
   list.appendChild(row);
   // wire: format belopp, recalc på ändring, ta bort
