@@ -692,6 +692,8 @@ function updateReversecalc(inputs) {
 // ─── Huvudberäkning ───────────────────────────────────────────────────────────
 let _mcTimeout   = null;
 let _lastMcData  = null;
+let _lastMcSuccess = null;   // senaste MC success-rate (för jämförelse i backtest)
+let _lastTier      = "fire"; // senaste klassificerade tier
 let _srTable     = [];   // [{age, rate}] förberäknad lookup för success-rate slider
 let _srTableInputsKey = ""; // cache-nyckel så vi inte räknar om i onödan
 
@@ -821,6 +823,8 @@ function recalc() {
   const annualSpend      = inputs.needPerMonth * 12 * Math.pow(1 + inf, ytr);
   const currentTier      = classifyTier(annualSpend, capitalAtRetire);
 
+  _lastTier = currentTier;
+
   // Uppdatera "Din plan i ett nötskal" — preliminärt tills MC är klart
   updatePlanSummary(inputs, currentTier, null);
 
@@ -930,6 +934,10 @@ function recalc() {
     renderPlanScore(scoreData);
     const insights = generateInsights(inputs, mc, tier, result, earliestByTier);
     renderInsights(insights);
+
+    // Spara MC-resultat och uppdatera backtest-jämförelsen sida-vid-sida
+    _lastMcSuccess = mc.successRate;
+    renderBacktest();
 
     // Bygg SR-lookup-tabell om inputs ändrats (körs i bakgrunden efter MC)
     const key = `${inputs.age}|${inputs.needPerMonth}|${inputs.savingsPerMonth}|${inputs.iskBalance}|${inputs.kfBalance}|${inputs.depaBalance}|${inputs.tjpPott}|${inputs.tjpPeriod}|${inputs.allmanMonthly}|${inputs.realReturn}|${inputs.inflation}`;
@@ -1832,15 +1840,39 @@ function renderBacktest() {
 
   renderHistoryChart(allocWorld);
 
+  // Framåtblickande antagande + historiskt snitt för jämförelse
+  const fwReal = inputs.realReturn, fwNom = inputs.realReturn + inputs.inflation;
+  const hs = historySeries(allocWorld);
+  const histNom = hs ? hs.cagrBlend : null;
+  const histReal = histNom != null ? (1+histNom)/(1+inputs.inflation/100)-1 : null;
+  const mcPct = _lastMcSuccess != null ? Math.round(_lastMcSuccess*100) : null;
+  const minSr = TIER_LIFESTYLE[activeTier || _lastTier || "fire"]?.minSuccessRate ?? 0.80;
+  const mcCls = mcPct == null ? "" : (mcPct/100 - minSr >= 0.05 ? "good" : mcPct/100 - minSr >= 0 ? "ok" : "warn");
+
   el.innerHTML = `
-    <div class="bt-headline">
-      <span class="bt-pct ${cls}">${pct}%</span>
-      <span class="bt-sub">av ${bt.windows} historiska ${bt.decumYears}-årsperioder (${bt.firstY}–${bt.lastY}) klarade <strong>uttagsfasen</strong> utan att ta slut — givet att du når din målportfölj vid frihet. (Monte Carlo ovan testar även om du <em>når</em> dit.)</span>
+    <div class="compare-row">
+      <div class="compare-box">
+        <div class="compare-h">Historiskt stresstest</div>
+        <span class="bt-pct ${cls}">${pct}%</span>
+        <div class="compare-s">av ${bt.windows} verkliga ${bt.decumYears}-årsperioder (${bt.firstY}–${bt.lastY})</div>
+      </div>
+      <div class="compare-box">
+        <div class="compare-h">Monte Carlo</div>
+        <span class="bt-pct ${mcCls}">${mcPct != null ? mcPct + "%" : "…"}</span>
+        <div class="compare-s">av ${MC_PATHS} simulerade banor</div>
+      </div>
     </div>
-    ${bt.failYears.length
-      ? `<div class="bt-fails">Tog slut om uttaget startade år: <strong>${bt.failYears.join(", ")}</strong> — då en stor nedgång kom tidigt i uttagsfasen (sekvensrisk).</div>`
-      : `<div class="bt-ok">Klarade samtliga historiska startår — inklusive de värsta (1973–74, 2000, 2008).</div>`}
-  `;
+    <div class="forward-note">
+      <strong>Framåtblickande antagande:</strong> ${fwReal}% real (${fwNom}% nominell) per år — det Monte Carlo räknar med.
+      ${histNom != null ? `Historiskt 1970–2025 gav din mix <strong>${(histNom*100).toFixed(1)}%/år</strong> nominell (~${(histReal*100).toFixed(1)}% real).
+      ${histReal > fwReal/100 ? "Ditt antagande är alltså försiktigt jämfört med historien." : "Ditt antagande ligger över det historiska snittet."}` : ""}
+    </div>
+    <div class="bt-detail">
+      Historiskt testar <strong>uttagsfasen</strong> mot faktiska sekvenser (givet din målportfölj). Monte Carlo testar hela resan med slumpad fat-tailed avkastning.
+      ${bt.failYears.length
+        ? ` Tog slut vid start ${bt.failYears.join(", ")} — stor nedgång tidigt (sekvensrisk).`
+        : ` Klarade alla historiska startår, inkl. de värsta (1973–74, 2000, 2008).`}
+    </div>`;
 }
 
 // ─── SR lookup-tabell ─────────────────────────────────────────────────────────
