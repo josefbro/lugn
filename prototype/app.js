@@ -498,6 +498,22 @@ function requiredSavingsToSustain(inputs, retireAge) {
   return Math.ceil((lo + hi) / 2);
 }
 
+// Högsta månadsbehov som planen bär med ≥80 % vid given ålder ("tillåtelse att
+// spendera"). Hållsannolikheten är monoton AVTAGANDE i behov → binärsökning.
+function maxSustainableNeed(inputs, retireAge) {
+  if (!planSustains(inputs, retireAge)) return null;        // håller inte ens nu
+  let lo = inputs.needPerMonth, hi = inputs.needPerMonth * 2;
+  let guard = 0;
+  while (planSustains({ ...inputs, needPerMonth: hi }, retireAge) && guard++ < 8) {
+    lo = hi; hi *= 1.5;
+  }
+  for (let i = 0; i < 16; i++) {
+    const mid = (lo + hi) / 2;
+    if (planSustains({ ...inputs, needPerMonth: mid }, retireAge)) lo = mid; else hi = mid;
+  }
+  return Math.floor(lo / 500) * 500;
+}
+
 // ─── Chart: dubbel panel (ackumulering + brygga) ─────────────────────────────
 function drawCharts(flows, retireAge, mcData) {
   drawAccumChart(flows, retireAge, mcData);
@@ -916,6 +932,7 @@ function recalc() {
   renderShock(inputs);
   renderFeeDrag();
   renderWithdrawalOpt(inputs);
+  renderTrygghet();
   renderBacktest();
 
   // Synka reverseAge med retire om användaren inte rört den
@@ -1626,6 +1643,102 @@ function optimizeTjpPeriod(inputs) {
   };
 }
 
+// ─── Trygghet: buffert · motståndskraft · tillåtelse att spendera ────────────
+// Uppskatta dagens månadsutgifter efter skatt: nettolön − sparande. Faller
+// tillbaka på önskat behov om lön saknas. Editbart fält vinner alltid.
+function estimateExpensesToday(inputs) {
+  const salary = +($("salary")?.value || 0);
+  if (salary <= 0) return inputs.needPerMonth;
+  const annualGross = salary * 12;
+  const netMonthly  = (annualGross - lonTax(annualGross, inputs.age)) / 12;
+  return Math.max(0, Math.round((netMonthly - inputs.savingsPerMonth) / 100) * 100);
+}
+
+function renderTrygghet() {
+  if (!document.getElementById("tryggBufferResult")) return;
+  const inputs = getInputs();
+
+  // — Månadsutgifter: för-ifyll uppskattning om användaren inte rört fältet —
+  const expEl = $("tryggExpenses");
+  const estimate = estimateExpensesToday(inputs);
+  if (expEl && !expEl._userEdited) expEl.value = estimate;
+  const expenses = +(expEl?.value || estimate) || estimate;
+
+  // ── 1. Buffert ──────────────────────────────────────────────────────────────
+  const months    = +($("tryggBufferMonths")?.value || 6);
+  const bufferNow  = +($("tryggBufferNow")?.value || 0);
+  const target     = expenses * months;
+  const gap        = target - bufferNow;
+  const bufEl = $("tryggBufferResult");
+  if (bufEl) {
+    if (gap <= 0) {
+      bufEl.innerHTML = `<span class="trygg-ok">✓ Du har en buffert på ${fmtKr(bufferNow)}</span> — täcker
+        ${(bufferNow / Math.max(1, expenses)).toFixed(1)} mån av dina utgifter, mer än målet ${months} mån (${fmtKr(target)}).`;
+    } else {
+      const haveMonths = (bufferNow / Math.max(1, expenses));
+      bufEl.innerHTML = `Mål: <strong>${fmtKr(target)}</strong> (${months} mån × ${fmtKr(expenses)}).
+        Du har ${fmtKr(bufferNow)} (${haveMonths.toFixed(1)} mån) — <span class="trygg-warn">${fmtKr(gap)} kvar</span>.
+        Bufferten bör ligga på sparkonto, inte investerad.`;
+    }
+  }
+
+  // ── 2. Motståndskraft (inkomstbortfall) ──────────────────────────────────────
+  const lossMonths = +($("tryggLossMonths")?.value || 6);
+  const lvEl = $("tryggLossVal"); if (lvEl) lvEl.textContent = lossMonths;
+  const safety     = +($("tryggSafetyNet")?.value || 0);
+  const shortfall  = Math.max(0, expenses - safety);          // kr/mån som måste täckas
+  const need       = shortfall * lossMonths;                  // totalt under perioden
+  const covered    = shortfall > 0 ? bufferNow / shortfall : Infinity;
+  const resEl = $("tryggResilienceResult");
+  if (resEl) {
+    if (shortfall === 0) {
+      resEl.innerHTML = `<span class="trygg-ok">✓ Ditt skyddsnät täcker hela utgiften</span> — du tär inte på bufferten alls.`;
+    } else if (bufferNow >= need) {
+      resEl.innerHTML = `<span class="trygg-ok">✓ Bufferten klarar det.</span> ${lossMonths} mån utan inkomst
+        kostar ${fmtKr(need)} (efter skyddsnät). Din buffert räcker ${covered.toFixed(1)} mån — du behöver inte röra investeringarna.`;
+    } else {
+      const fromPortfolio = need - bufferNow;
+      resEl.innerHTML = `<span class="trygg-warn">Bufferten räcker ${covered.toFixed(1)} mån.</span>
+        ${lossMonths} mån utan inkomst kostar ${fmtKr(need)} — <strong>${fmtKr(fromPortfolio)}</strong> måste tas från
+        investeringar eller sänkta utgifter. Överväg en större buffert eller lägre fasta kostnader.`;
+    }
+  }
+  // SGI-not: relevant för den som planerar frihet före pensionsålder
+  const sgiEl = $("tryggSgiNote");
+  if (sgiEl) {
+    sgiEl.textContent = inputs.retire < 65
+      ? "Tänk på: slutar du jobba före pension förlorar du din SGI — då finns ingen sjukpenning eller föräldrapenning som golv, bara din buffert och ditt kapital."
+      : "A-kassa kräver medlemskap; sjukpenning bygger på din SGI (ung. 80 % av lön upp till tak). Lämna skyddsnätet på 0 för att se värsta fallet.";
+  }
+
+  // ── 3. Tillåtelse att spendera (debouncad — Monte Carlo-binärsökning) ─────────
+  const permEl = $("tryggPermissionResult");
+  if (permEl) {
+    permEl.classList.add("trygg-calc");
+    clearTimeout(_tryggPermTimeout);
+    _tryggPermTimeout = setTimeout(() => {
+      const fresh = getInputs();
+      const maxNeed = maxSustainableNeed(fresh, fresh.retire);
+      permEl.classList.remove("trygg-calc");
+      if (maxNeed === null) {
+        permEl.innerHTML = `Vid ${fmtKr(fresh.needPerMonth)}/mån håller planen inte ≥80 % vid ${fresh.retire} år ännu.
+          Det här läget visar ditt spenderutrymme så snart planen är robust — höj sparandet eller flytta åldern först.`;
+      } else {
+        const headroom = maxNeed - fresh.needPerMonth;
+        if (headroom >= 500) {
+          permEl.innerHTML = `<span class="trygg-ok">Du har råd att leva på mer.</span> Din plan håller ≥80 % ända upp till
+            <strong>${fmtKr(maxNeed)}/mån</strong> vid ${fresh.retire} år — <strong>${fmtKr(headroom)}/mån mer</strong>
+            än du planerar (${fmtKr(fresh.needPerMonth)}). Du får unna dig. Pengarna finns för att leva, inte bara räknas.`;
+        } else {
+          permEl.innerHTML = `Du ligger nära taket: <strong>${fmtKr(maxNeed)}/mån</strong> är ungefär så högt du kan gå
+            vid ${fresh.retire} år och fortfarande hålla ≥80 %. Vill du leva på mer — jobba något år till eller spara lite mer.`;
+        }
+      }
+    }, 280);
+  }
+}
+let _tryggPermTimeout = null;
+
 function renderWithdrawalOpt(inputs) {
   const el = document.getElementById("withdrawalOpt");
   if (!el) return;
@@ -2017,9 +2130,22 @@ function updateSrSliderDisplay() {
 function setupLifestyleChips() { /* deprecated: inga chips längre */ }
 
 // ─── Wire up inputs ───────────────────────────────────────────────────────────
+// Trygghet-fälten påverkar bara Trygghet-panelen → egen lätt lyssnare (ingen tung MC).
+const TRYGG_FIELDS = new Set([
+  "tryggExpenses", "tryggBufferNow", "tryggBufferMonths", "tryggLossMonths", "tryggSafetyNet",
+]);
 document.querySelectorAll("input, select").forEach(el => {
   if (el.id === "customNeedInput") return;  // hanteras separat
   if (el.id === "allmanMonthly") return;    // hanteras separat (override-flagga)
+  if (TRYGG_FIELDS.has(el.id)) {
+    if (el.id === "tryggExpenses") {
+      el.addEventListener("input", () => { el._userEdited = !(!el.value || +el.value === 0); renderTrygghet(); });
+    } else {
+      el.addEventListener("input", renderTrygghet);
+    }
+    el.addEventListener("change", renderTrygghet);
+    return;
+  }
   el.addEventListener("input",  recalc);
   el.addEventListener("change", recalc);
 });

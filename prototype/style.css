@@ -1155,6 +1155,53 @@ canvas {
 .wo-opt-sub { font-size: 12px; opacity: .7; }
 .wo-apply { white-space: nowrap; }
 
+/* === TRYGGHET (buffert · motståndskraft · tillåtelse att spendera) === */
+.trygg-panel {
+  background: var(--cream-100);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.trygg-head { margin-bottom: 14px; }
+.trygg-head h4 {
+  font-family: var(--serif); font-size: 18px; font-weight: 600; margin: 0 0 4px;
+}
+.trygg-sub { font-size: 13px; color: var(--ink-400); }
+.trygg-card {
+  background: var(--cream-50);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.trygg-card:last-child { margin-bottom: 0; }
+.trygg-card-title { font-size: 14px; font-weight: 600; color: var(--sage-700); margin-bottom: 10px; }
+.trygg-controls {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 10px 14px; margin-bottom: 12px;
+}
+.trygg-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.trygg-field > span { font-size: 12px; color: var(--ink-600); font-weight: 500; }
+.trygg-field input, .trygg-field select {
+  width: 100%; min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: 6px;
+  font-size: 14px; font-family: var(--sans); background: #fff;
+}
+.trygg-field input[type="range"] { padding: 0; accent-color: var(--sage-700); }
+.trygg-result { font-size: 14px; color: var(--ink-600); line-height: 1.55; }
+.trygg-result strong { color: var(--ink-900); }
+.trygg-ok   { color: var(--sage-700); font-weight: 600; }
+.trygg-warn { color: var(--coral-600); font-weight: 600; }
+.trygg-note { font-size: 12px; color: var(--ink-400); margin: 8px 0 0; line-height: 1.5; }
+.trygg-permission {
+  background: linear-gradient(135deg, rgba(88,129,87,.10), rgba(196,109,77,.06));
+  border-color: rgba(88,129,87,.25);
+}
+.trygg-permission .trygg-result { color: var(--ink-900); }
+.trygg-result.trygg-calc { opacity: .5; }
+
 /* === BEHAVIORAL SHOCK === */
 .shock-wrap {
   background: var(--cream-100);
