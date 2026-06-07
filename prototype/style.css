@@ -1201,6 +1201,7 @@ canvas {
 }
 .trygg-permission .trygg-result { color: var(--ink-900); }
 .trygg-result.trygg-calc { opacity: .5; }
+.trygg-apply { font-size: 12px; padding: 5px 11px; margin-left: 4px; white-space: nowrap; }
 
 /* === BEHAVIORAL SHOCK === */
 .shock-wrap {

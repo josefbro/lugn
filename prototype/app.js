@@ -838,7 +838,21 @@ function getInputs() {
     loanBalance:    +($("loanBalance")?.value || 0),
     loanRate:       +($("loanRate")?.value || 0),
     loanAmort:      +($("loanAmort")?.value || 0),
+    propertyValue:  +($("propertyValue")?.value || 0),
   };
+}
+
+// Lagstadgat amorteringskrav (Finansinspektionen). Belåningsgrad styr grundkravet,
+// skuldkvot (lån > 4,5× bruttoårsinkomst) ger +1 procentenhet. Procent av lånet/år.
+// OBS: FI räknar på ursprungligt lånebelopp; här uppskattat på nuvarande lån.
+function amorteringskrav(loan, propertyValue, grossAnnualIncome) {
+  if (loan <= 0 || propertyValue <= 0) return null;
+  const ltv = loan / propertyValue;
+  let pct = ltv > 0.70 ? 0.02 : ltv > 0.50 ? 0.01 : 0;
+  const skuldkvot = grossAnnualIncome > 0 ? loan / grossAnnualIncome : 0;
+  const skuldkvotTillagg = skuldkvot > 4.5 ? 0.01 : 0;
+  pct += skuldkvotTillagg;
+  return { ltv, skuldkvot, pct, skuldkvotTillagg, annual: pct * loan, monthly: pct * loan / 12 };
 }
 
 function recalc() {
@@ -1733,6 +1747,10 @@ function renderTrygghet() {
       if (payoffYears === Infinity) {
         payoffTxt = `Du amorterar inte — lånet ligger kvar. Boendekostnaden ~${fmtKr(housingMonth)}/mån
           (ränta efter avdrag) finns kvar livet ut och belastar din pension.`;
+      } else if (payoffAge > inputs.lifespan) {
+        payoffTxt = `I din takt (${fmtKr(amort)}/mån) är lånet inte avbetalt under din livstid — boendekostnaden
+          ~<strong>${fmtKr(housingMonth)}/mån</strong> följer med in i pensionen. En högre amortering betalar av det
+          tidigare och sänker behovet.`;
       } else {
         const beforeFrihet = payoffAge <= inputs.retire;
         payoffTxt = `Avbetalt om <strong>${payoffYears} år</strong> (vid ${payoffAge} år). Då försvinner
@@ -1746,8 +1764,34 @@ function renderTrygghet() {
         ? `<span class="trygg-ok">Amortering vinner.</span> Att amortera ger en garanterad ~${afterTaxMortgage.toFixed(1)} % efter ränteavdrag — mer än din förväntade avkastning ${expectedNominal.toFixed(1)} %. Extra amortering är både trygghet och bra affär.`
         : `Förväntad avkastning ${expectedNominal.toFixed(1)} % > lånets ~${afterTaxMortgage.toFixed(1)} % efter avdrag → att investera ger mer i snitt. Men amortering är <em>riskfritt</em> och sänker dina fasta kostnader — väg trygghet mot förväntat överskott.`;
 
+      // Lagstadgat amorteringskrav (om bostadsvärde angetts)
+      const grossAnnual = (+($("salary")?.value || 0)) * 12;
+      const krav = amorteringskrav(loan, inputs.propertyValue, grossAnnual);
+      let kravTxt = "";
+      if (krav) {
+        const ltvPct = (krav.ltv * 100).toFixed(0);
+        const bracket = krav.ltv > 0.70 ? "2 %" : krav.ltv > 0.50 ? "1 %" : "0 %";
+        const skuldTxt = krav.skuldkvotTillagg > 0
+          ? ` Skuldkvot ${krav.skuldkvot.toFixed(1)}× > 4,5 → +1 procentenhet.`
+          : ` Skuldkvot ${krav.skuldkvot.toFixed(1)}× (under 4,5).`;
+        const needsMore = krav.monthly > inputs.loanAmort + 50;
+        kravTxt = `<p class="trygg-note">Belåningsgrad <strong>${ltvPct} %</strong> → grundkrav ${bracket}/år.${skuldTxt}
+          Lagkrav: ~<strong>${fmtKr(krav.monthly)}/mån</strong> (${(krav.pct*100).toFixed(0)} % av lånet).
+          ${needsMore
+            ? `Du amorterar ${fmtKr(inputs.loanAmort)} — under kravet. <button class="btn btn-ghost trygg-apply" id="kravApply" type="button">Använd ${fmtKr(krav.monthly)}/mån →</button>`
+            : `Du uppfyller kravet. ✓`}
+          <br><span style="opacity:.7">Uppskattat på nuvarande lån; FI räknar på ursprungligt lånebelopp.</span></p>`;
+      }
+
       bolEl.innerHTML = `${payoffTxt}<br><span style="display:inline-block;margin-top:8px">${vsTxt}</span>`
+        + kravTxt
         + `<p class="trygg-note">Ange "Vill leva på" som dina utgifter <em>utan</em> bolån — boendet läggs på automatiskt tills lånet är avbetalt, så det inte dubbelräknas.</p>`;
+
+      const kravBtn = document.getElementById("kravApply");
+      if (kravBtn) kravBtn.onclick = () => {
+        const f = $("loanAmort");
+        if (f) { f.value = Math.round(krav.monthly / 100) * 100; recalc(); }
+      };
     }
   }
 
