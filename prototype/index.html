@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=41">
-<link rel="stylesheet" href="onboarding.css?v=41">
+<link rel="stylesheet" href="style.css?v=42">
+<link rel="stylesheet" href="onboarding.css?v=42">
 </head>
 <body>
 
@@ -273,7 +273,7 @@
           <div class="need-section">
             <label class="need-input-label">
               <span>Vill kunna leva på <span class="input-hint">per månad, efter skatt</span></span>
-              <input type="number" id="needPerMonth" value="30000" step="1000">
+              <input type="text" inputmode="numeric" class="num" id="needPerMonth" value="30000" step="1000">
             </label>
             <p class="need-hint">Pengarna du faktiskt får i handen att leva på som fri — inte bruttolön.</p>
           </div>
@@ -281,17 +281,17 @@
           <h3>Dina pengar</h3>
           <label>
             <span>Totalt sparat <span class="input-hint">ISK, fonder, aktier</span></span>
-            <input type="number" id="iskBalance" value="1500000" step="50000">
+            <input type="text" inputmode="numeric" class="num" id="iskBalance" value="1500000" step="50000">
           </label>
           <label>
             <span>Sparar per månad</span>
-            <input type="number" id="savingsPerMonth" value="20000" step="1000">
+            <input type="text" inputmode="numeric" class="num" id="savingsPerMonth" value="20000" step="1000">
           </label>
 
           <h3>Bolån <span class="input-hint">valfritt — sänker behovet när det är avbetalt</span></h3>
           <label>
             <span>Bostadens värde <span class="input-hint">för belåningsgrad</span></span>
-            <input type="number" id="propertyValue" value="0" step="100000">
+            <input type="text" inputmode="numeric" class="num" id="propertyValue" value="0" step="100000">
           </label>
           <label class="calc-slider-row">
             <span>Belåningsgrad <strong id="ltvVal">0 %</strong> <span class="input-hint">dra för att räkna fram lånet (max 90 %)</span></span>
@@ -299,7 +299,7 @@
           </label>
           <label>
             <span>Kvarvarande bolån <span class="input-hint">från belåningsgrad</span></span>
-            <input type="number" id="loanBalance" value="0" step="50000">
+            <input type="text" inputmode="numeric" class="num" id="loanBalance" value="0" step="50000">
           </label>
           <label>
             <span>Ränta <span class="input-hint">%</span></span>
@@ -307,7 +307,7 @@
           </label>
           <label>
             <span>Amorterar per månad <span class="input-hint">auto = lagkravet</span></span>
-            <input type="number" id="loanAmort" value="0" step="500">
+            <input type="text" inputmode="numeric" class="num" id="loanAmort" value="0" step="500">
           </label>
 
           <h3>Din pension</h3>
@@ -330,17 +330,17 @@
           </label>
           <label>
             <span>Tjänstepension <span class="input-hint">samlat värde idag</span></span>
-            <input type="number" id="tjpPott" value="0" step="50000">
+            <input type="text" inputmode="numeric" class="num" id="tjpPott" value="0" step="50000">
           </label>
           <label>
             <span>Din månadslön <span class="input-hint" id="allmanComputed">räknar allmän pension åt dig</span></span>
-            <input type="number" id="salary" value="0" step="1000" placeholder="t.ex. 38000">
+            <input type="text" inputmode="numeric" class="num" id="salary" value="0" step="1000" placeholder="t.ex. 38000">
           </label>
           <label>
             <span>Allmän pension / mån <span class="input-hint">vid din frihetsålder</span>
               <a class="input-link" href="https://www.minpension.se" target="_blank">eller ange direkt från minpension.se ↗</a>
             </span>
-            <input type="number" id="allmanMonthly" value="0" step="1000">
+            <input type="text" inputmode="numeric" class="num" id="allmanMonthly" value="0" step="1000">
           </label>
           <div class="field-note" id="allmanAt65Note" style="display:none"></div>
 
@@ -350,11 +350,11 @@
           <div class="advanced-section" id="advancedSection">
             <label>
               <span>KF (kapitalförsäkring)</span>
-              <input type="number" id="kfBalance" value="0" step="50000">
+              <input type="text" inputmode="numeric" class="num" id="kfBalance" value="0" step="50000">
             </label>
             <label>
               <span>Vanlig depå (AKB)</span>
-              <input type="number" id="depaBalance" value="0" step="50000">
+              <input type="text" inputmode="numeric" class="num" id="depaBalance" value="0" step="50000">
             </label>
             <label>
               <span>TJP utbetalningsperiod</span>
@@ -380,7 +380,7 @@
             </label>
             <label>
               <span>TJP-avsättning / mån <span class="input-hint">medan du jobbar (typ. 4,5–6% av lön)</span></span>
-              <input type="number" id="tjpContrib" value="0" step="500">
+              <input type="text" inputmode="numeric" class="num" id="tjpContrib" value="0" step="500">
             </label>
             <label class="toggle-label">
               <span>AP7-glidbana <span class="input-hint">trappa ner aktier mot pension (livscykel)</span></span>
@@ -480,11 +480,11 @@
               <div class="trygg-controls">
                 <label class="trygg-field">
                   <span>Månadsutgifter idag <span class="input-hint">efter skatt</span></span>
-                  <input type="number" id="tryggExpenses" step="1000" value="">
+                  <input type="text" inputmode="numeric" class="num" id="tryggExpenses" step="1000" value="">
                 </label>
                 <label class="trygg-field">
                   <span>Buffert på sparkonto idag</span>
-                  <input type="number" id="tryggBufferNow" step="10000" value="0">
+                  <input type="text" inputmode="numeric" class="num" id="tryggBufferNow" step="10000" value="0">
                 </label>
                 <label class="trygg-field">
                   <span>Hur många månader vill du täcka?</span>
@@ -515,7 +515,7 @@
                 </label>
                 <label class="trygg-field">
                   <span>Skyddsnät <span class="input-hint">a-kassa/sjukpenning, kr/mån</span></span>
-                  <input type="number" id="tryggSafetyNet" step="1000" value="0">
+                  <input type="text" inputmode="numeric" class="num" id="tryggSafetyNet" step="1000" value="0">
                 </label>
               </div>
               <div class="trygg-result" id="tryggResilienceResult">—</div>
@@ -561,11 +561,11 @@
             <div class="isk-af-inputs">
               <label class="isk-af-input-label">
                 <span>Befintligt kapital</span>
-                <input type="number" id="iskAfInitial" value="1000000" step="100000">
+                <input type="text" inputmode="numeric" class="num" id="iskAfInitial" value="1000000" step="100000">
               </label>
               <label class="isk-af-input-label">
                 <span>Månadssparande</span>
-                <input type="number" id="iskAfMonthly" value="10000" step="1000">
+                <input type="text" inputmode="numeric" class="num" id="iskAfMonthly" value="10000" step="1000">
               </label>
               <label class="isk-af-input-label">
                 <span>Sparhorisont (år)</span>
@@ -733,9 +733,9 @@
   <span class="reset-fab-icon">↺</span><span class="reset-fab-label"> Ta om frågorna</span>
 </button>
 
-<script src="kommunalskatt.js?v=41"></script>
-<script src="market_history.js?v=41"></script>
-<script src="onboarding.js?v=41"></script>
-<script src="app.js?v=41"></script>
+<script src="kommunalskatt.js?v=42"></script>
+<script src="market_history.js?v=42"></script>
+<script src="onboarding.js?v=42"></script>
+<script src="app.js?v=42"></script>
 </body>
 </html>

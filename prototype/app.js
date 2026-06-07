@@ -8,6 +8,39 @@ const fmtKr = n => {
 const fmtPct = n => `${Math.round(n)}%`;
 const $ = id => document.getElementById(id);
 
+// ─── Tal-input med mellanslag som tusentalsavgränsare ─────────────────────────
+// Heltalsfält visas som "2 000 000". Läs ALLTID av via numv() (strippar mellanslag),
+// skriv via setNumVal()/fmtNum() så displayen formateras.
+function fmtNum(n) {
+  n = Math.round(+n || 0);
+  const s = Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return (n < 0 ? "-" : "") + s;
+}
+function numv(id, dflt = 0) {
+  const e = typeof id === "string" ? $(id) : id;
+  if (!e || e.value === "" || e.value == null) return dflt;
+  const n = +String(e.value).replace(/[\s ]/g, "");
+  return isNaN(n) ? dflt : n;
+}
+function setNumVal(id, n) {
+  const e = typeof id === "string" ? $(id) : id;
+  if (e) e.value = fmtNum(n);
+}
+// Live-formatering med bevarad markörposition (heltal, icke-negativa).
+function formatNumInput(el) {
+  const sel = el.selectionStart ?? el.value.length;
+  const digitsBefore = (el.value.slice(0, sel).match(/\d/g) || []).length;
+  const digits = el.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  const formatted = digits === "" ? "" : digits.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  el.value = formatted;
+  let pos = 0, count = 0;
+  while (pos < formatted.length && count < digitsBefore) {
+    if (/\d/.test(formatted[pos])) count++;
+    pos++;
+  }
+  try { el.setSelectionRange(pos, pos); } catch (e) {}
+}
+
 // ─── 2026 skattekonstanter ────────────────────────────────────────────────────
 const ISK_GRUNDAVDRAG    = 300_000;
 const SLR_30_NOV         = 0.0255;
@@ -822,23 +855,23 @@ function getInputs() {
     age:            +$("age").value,
     retire:         +$("retire").value,
     lifespan:       +$("lifespan").value,
-    needPerMonth:   +$("needPerMonth").value,
-    savingsPerMonth:+$("savingsPerMonth").value,
-    iskBalance:     +$("iskBalance").value,
-    kfBalance:      +$("kfBalance").value,
-    depaBalance:    +$("depaBalance").value,
-    tjpPott:        +$("tjpPott").value,
+    needPerMonth:   numv("needPerMonth"),
+    savingsPerMonth:numv("savingsPerMonth"),
+    iskBalance:     numv("iskBalance"),
+    kfBalance:      numv("kfBalance"),
+    depaBalance:    numv("depaBalance"),
+    tjpPott:        numv("tjpPott"),
     tjpPeriod:      +$("tjpPeriod").value,
     // TJP-avsättning: från avtal+lön om möjligt, annars manuellt fält
-    tjpContrib:     (tjpContribFromAvtal($("avtal")?.value || "ingen", +($("salary")?.value || 0)) ?? +($("tjpContrib")?.value || 0)),
+    tjpContrib:     (tjpContribFromAvtal($("avtal")?.value || "ingen", numv("salary")) ?? numv("tjpContrib")),
     avtal:          $("avtal")?.value || "ingen",
-    allmanMonthly:  +$("allmanMonthly").value,   // fältet är källa; lön för-ifyller det
+    allmanMonthly:  numv("allmanMonthly"),   // fältet är källa; lön för-ifyller det
     realReturn:     +$("realReturn").value,
     inflation:      +$("inflation").value,
-    loanBalance:    +($("loanBalance")?.value || 0),
+    loanBalance:    numv("loanBalance"),
     loanRate:       +($("loanRate")?.value || 0),
-    loanAmort:      +($("loanAmort")?.value || 0),
-    propertyValue:  +($("propertyValue")?.value || 0),
+    loanAmort:      numv("loanAmort"),
+    propertyValue:  numv("propertyValue"),
   };
 }
 
@@ -856,7 +889,7 @@ function amorteringskrav(loan, propertyValue) {
 // Två-vägs-synk mellan belåningsgrad-slider och kvarvarande lån + autofyll amort.
 let _bolanSource = "ltv";   // "ltv" = slidern styr lånet, "loan" = användaren skrev lånet
 function syncBolan() {
-  const pv     = +($("propertyValue")?.value || 0);
+  const pv     = numv("propertyValue");
   const slider = $("ltvSlider");
   const loanF  = $("loanBalance");
   const amortF = $("loanAmort");
@@ -864,10 +897,10 @@ function syncBolan() {
 
   if (pv > 0) {
     if (_bolanSource === "loan") {
-      const ltv = Math.max(0, Math.min(90, (+loanF.value || 0) / pv * 100));
+      const ltv = Math.max(0, Math.min(90, numv(loanF) / pv * 100));
       slider.value = Math.round(ltv);
     } else {
-      loanF.value = Math.round((+slider.value / 100) * pv / 1000) * 1000;   // jämn 1000-tal
+      setNumVal(loanF, Math.round((+slider.value / 100) * pv / 1000) * 1000);   // jämn 1000-tal
     }
   }
   const ltvEl = $("ltvVal");
@@ -875,8 +908,8 @@ function syncBolan() {
 
   // Amorteringen autofylls med lagkravet om användaren inte skrivit eget belopp
   if (amortF && !amortF._userEdited) {
-    const krav = amorteringskrav(+(loanF.value || 0), pv);
-    amortF.value = krav ? Math.round(krav.monthly / 100) * 100 : 0;
+    const krav = amorteringskrav(numv(loanF), pv);
+    setNumVal(amortF, krav ? Math.round(krav.monthly / 100) * 100 : 0);
   }
 }
 
@@ -887,11 +920,11 @@ function recalc() {
   if (krEl) krEl.textContent = `${(_kommunalskatt*100).toFixed(2)}% kommunalskatt`;
 
   // För-ifyll allmän pension från lön — VID VALD FRIHETSÅLDER (reducerad).
-  const salaryVal = +($("salary")?.value || 0);
+  const salaryVal = numv("salary");
   const retireVal = +$("retire").value;
   const amField = $("allmanMonthly");
   if (amField && salaryVal > 0 && !amField._userEdited) {
-    amField.value = Math.round(allmanAt65Full(salaryVal) * allmanFactor(retireVal));
+    setNumVal(amField, Math.round(allmanAt65Full(salaryVal) * allmanFactor(retireVal)));
   }
 
   // ── Bolån: belåningsgrad-slidern styr kvarvarande lån; amortering autofylls med
@@ -903,7 +936,7 @@ function recalc() {
   // Visa avtals-info: avsättning + tidigast uttag
   const avtalEl = document.getElementById("avtalInfo");
   const avtalKey = $("avtal")?.value || "ingen";
-  const salForAvtal = +($("salary")?.value || 0);
+  const salForAvtal = numv("salary");
   if (avtalEl) {
     const a = AVTAL[avtalKey];
     const contrib = tjpContribFromAvtal(avtalKey, salForAvtal);
@@ -1187,7 +1220,7 @@ function generateInsights(inputs, mc, result, earliest80) {
   }
 
   // — Early retirement sänker pensionen (räknat från lön) —
-  const salaryForInsight = +($("salary")?.value || 0);
+  const salaryForInsight = numv("salary");
   if (inputs.retire < 62 && salaryForInsight > 0) {
     const f = allmanFactor(inputs.retire);
     const full = Math.round(allmanAt65Full(salaryForInsight));
@@ -1477,7 +1510,7 @@ function renderIskVsAfChart(initial, monthly, years, nominalReturn) {
   const fireEl = document.getElementById("iskAfFireTime");
   if (fireEl) {
     // Hämta FIRE-mål från kalkylatorn (25× årsspend)
-    const needPerMonth = +($("needPerMonth")?.value || 35_000);
+    const needPerMonth = numv("needPerMonth", 35000);
     const fireTarget   = needPerMonth * 12 * 25;
 
     const iskMonths = monthsToFire(initial, monthly, nominalReturn, fireTarget, "isk");
@@ -1527,8 +1560,8 @@ function renderIskVsAfChart(initial, monthly, years, nominalReturn) {
 }
 
 function updateIskAfComparison() {
-  const initial  = +document.getElementById("iskAfInitial")?.value  || 1_000_000;
-  const monthly  = +document.getElementById("iskAfMonthly")?.value  || 10_000;
+  const initial  = numv("iskAfInitial", 1_000_000);
+  const monthly  = numv("iskAfMonthly", 10_000);
   const years    = +document.getElementById("iskAfYears")?.value    || 20;
   const ret      = +document.getElementById("iskAfReturn")?.value   || 7;
   renderIskVsAfChart(initial, monthly, years, ret);
@@ -1716,7 +1749,7 @@ function optimizeTjpPeriod(inputs) {
 // Uppskatta dagens månadsutgifter efter skatt: nettolön − sparande. Faller
 // tillbaka på önskat behov om lön saknas. Editbart fält vinner alltid.
 function estimateExpensesToday(inputs) {
-  const salary = +($("salary")?.value || 0);
+  const salary = numv("salary");
   if (salary <= 0) return inputs.needPerMonth;
   const annualGross = salary * 12;
   const netMonthly  = (annualGross - lonTax(annualGross, inputs.age)) / 12;
@@ -1730,12 +1763,12 @@ function renderTrygghet() {
   // — Månadsutgifter: för-ifyll uppskattning om användaren inte rört fältet —
   const expEl = $("tryggExpenses");
   const estimate = estimateExpensesToday(inputs);
-  if (expEl && !expEl._userEdited) expEl.value = estimate;
-  const expenses = +(expEl?.value || estimate) || estimate;
+  if (expEl && !expEl._userEdited) setNumVal(expEl, estimate);
+  const expenses = expEl && expEl.value !== "" ? numv(expEl, estimate) : estimate;
 
   // ── 1. Buffert ──────────────────────────────────────────────────────────────
   const months    = +($("tryggBufferMonths")?.value || 6);
-  const bufferNow  = +($("tryggBufferNow")?.value || 0);
+  const bufferNow  = numv("tryggBufferNow");
   const target     = expenses * months;
   const gap        = target - bufferNow;
   const bufEl = $("tryggBufferResult");
@@ -1828,7 +1861,7 @@ function renderTrygghet() {
   // ── 2. Motståndskraft (inkomstbortfall) ──────────────────────────────────────
   const lossMonths = +($("tryggLossMonths")?.value || 6);
   const lvEl = $("tryggLossVal"); if (lvEl) lvEl.textContent = lossMonths;
-  const safety     = +($("tryggSafetyNet")?.value || 0);
+  const safety     = numv("tryggSafetyNet");
   const shortfall  = Math.max(0, expenses - safety);          // kr/mån som måste täckas
   const need       = shortfall * lossMonths;                  // totalt under perioden
   const covered    = shortfall > 0 ? bufferNow / shortfall : Infinity;
@@ -2273,6 +2306,13 @@ function updateSrSliderDisplay() {
 function setupLifestyleChips() { /* deprecated: inga chips längre */ }
 
 // ─── Wire up inputs ───────────────────────────────────────────────────────────
+// Tal-fält med mellanslag (.num): live-formatera FÖRST (registreras före övriga
+// lyssnare så formateringen sker innan downstream-läsning via numv).
+document.querySelectorAll("input.num").forEach(el => {
+  el.addEventListener("input", () => formatNumInput(el));
+  formatNumInput(el);   // formatera initiala HTML-värden (t.ex. 1500000 → 1 500 000)
+});
+
 // Trygghet-fälten påverkar bara Trygghet-panelen → egen lätt lyssnare (ingen tung MC).
 const TRYGG_FIELDS = new Set([
   "tryggExpenses", "tryggBufferNow", "tryggBufferMonths", "tryggLossMonths", "tryggSafetyNet",
@@ -2283,7 +2323,7 @@ document.querySelectorAll("input, select").forEach(el => {
   if (el.id === "ltvSlider" || el.id === "loanBalance" || el.id === "loanAmort") return; // bolån separat
   if (TRYGG_FIELDS.has(el.id)) {
     if (el.id === "tryggExpenses") {
-      el.addEventListener("input", () => { el._userEdited = !(!el.value || +el.value === 0); renderTrygghet(); });
+      el.addEventListener("input", () => { el._userEdited = numv(el) > 0; renderTrygghet(); });
     } else {
       el.addEventListener("input", renderTrygghet);
     }
@@ -2299,7 +2339,7 @@ $("ltvSlider")?.addEventListener("input", () => { _bolanSource = "ltv"; recalc()
 $("loanBalance")?.addEventListener("input", () => { _bolanSource = "loan"; recalc(); });
 $("loanAmort")?.addEventListener("input", () => {
   const el = $("loanAmort");
-  el._userEdited = !(!el.value || +el.value === 0);   // tomt/0 → återgå till auto (lagkrav)
+  el._userEdited = numv(el) > 0;   // tomt/0 → återgå till auto (lagkrav)
   recalc();
 });
 
@@ -2323,21 +2363,7 @@ $("retire").addEventListener("input", () => { activeTier = null; });
 
 // Reverse-calc
 $("reverseAge")?.addEventListener("input", () => { $("reverseAge")._userMoved = true;
-  const inputs = {
-    age:            +$("age").value,
-    retire:         +$("retire").value,
-    lifespan:       +$("lifespan").value,
-    needPerMonth:   +$("needPerMonth").value,
-    savingsPerMonth:+$("savingsPerMonth").value,
-    iskBalance:     +$("iskBalance").value,
-    kfBalance:      +$("kfBalance").value,
-    depaBalance:    +$("depaBalance").value,
-    tjpPott:        +$("tjpPott").value,
-    tjpPeriod:      +$("tjpPeriod").value,
-    allmanMonthly:  +$("allmanMonthly").value,
-    realReturn:     +$("realReturn").value,
-    inflation:      +$("inflation").value,
-  };
+  const inputs = getInputs();
   updateReversecalc(inputs);
 });
 
@@ -2358,9 +2384,9 @@ document.getElementById("allocSlider")?.addEventListener("input", () => {
 });
 function syncIskAfDefaults() {
   const elInit = document.getElementById("iskAfInitial");
-  if (elInit && !elInit._userMoved) elInit.value = $("iskBalance")?.value || 1_000_000;
+  if (elInit && !elInit._userMoved) setNumVal(elInit, numv("iskBalance", 1_000_000));
   const elMon = document.getElementById("iskAfMonthly");
-  if (elMon && !elMon._userMoved) elMon.value = $("savingsPerMonth")?.value || 10_000;
+  if (elMon && !elMon._userMoved) setNumVal(elMon, numv("savingsPerMonth", 10_000));
   const elRet = document.getElementById("iskAfReturn");
   if (elRet && !elRet._userMoved) {
     elRet.value = (+($("realReturn")?.value || 5)) + (+($("inflation")?.value || 2));
@@ -2386,7 +2412,7 @@ $("advancedToggle")?.addEventListener("click", () => {
 // Manuell ändring av allmän pension → sluta för-ifylla från lön (flagga FÖRE recalc)
 $("allmanMonthly")?.addEventListener("input", () => {
   const el = $("allmanMonthly");
-  el._userEdited = !(!el.value || +el.value === 0);  // tomt/0 → återgå till auto
+  el._userEdited = numv(el) > 0;  // tomt/0 → återgå till auto
   recalc();
 });
 
@@ -2416,10 +2442,10 @@ function applyOnboardingAnswers() {
 
     if (a.age)           $("age").value            = a.age;
     if (a.retireAge)     $("retire").value          = a.retireAge;
-    if (a.totalSaved)    $("iskBalance").value      = a.totalSaved;
-    if (a.monthlySavings) $("savingsPerMonth").value = a.monthlySavings;
-    if (a.needPerMonth)  $("needPerMonth").value    = a.needPerMonth;
-    if (a.salary != null && $("salary")) $("salary").value = a.salary;
+    if (a.totalSaved)    setNumVal("iskBalance", a.totalSaved);
+    if (a.monthlySavings) setNumVal("savingsPerMonth", a.monthlySavings);
+    if (a.needPerMonth)  setNumVal("needPerMonth", a.needPerMonth);
+    if (a.salary != null && $("salary")) setNumVal("salary", a.salary);
 
     // Antaget avtal utifrån anställningsform (kan ändras i kalkylatorn)
     if (a.employment && $("avtal")) {
@@ -2427,7 +2453,7 @@ function applyOnboardingAnswers() {
     }
 
     // TJP: om de inte vet, sätt pott till 0
-    if (a.hasTjp === "none") $("tjpPott").value = 0;
+    if (a.hasTjp === "none") setNumVal("tjpPott", 0);
 
     // Disposition: spara för coach
     if (a.disposition) window._lugn_disposition = a.disposition;
