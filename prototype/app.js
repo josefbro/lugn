@@ -1888,7 +1888,10 @@ function renderTrygghet() {
   }
 
   // ── 3. Tillåtelse att spendera (debouncad — Monte Carlo-binärsökning) ─────────
-  const permEl = $("tryggPermissionResult");
+  // Visas BARA om planen håller ≥80 % — annars finns ingen möjlighet att spendera
+  // mer, och kortet döljs helt.
+  const permEl   = $("tryggPermissionResult");
+  const permCard = permEl ? permEl.closest(".trygg-card") : null;
   if (permEl) {
     permEl.classList.add("trygg-calc");
     clearTimeout(_tryggPermTimeout);
@@ -1897,18 +1900,18 @@ function renderTrygghet() {
       const maxNeed = maxSustainableNeed(fresh, fresh.retire);
       permEl.classList.remove("trygg-calc");
       if (maxNeed === null) {
-        permEl.innerHTML = `Vid ${fmtKr(fresh.needPerMonth)}/mån håller planen inte ≥80 % vid ${fresh.retire} år ännu.
-          Det här läget visar ditt spenderutrymme så snart planen är robust — höj sparandet eller flytta åldern först.`;
+        if (permCard) permCard.style.display = "none";   // ingen möjlighet → dölj kortet
+        return;
+      }
+      if (permCard) permCard.style.display = "";
+      const headroom = maxNeed - fresh.needPerMonth;
+      if (headroom >= 500) {
+        permEl.innerHTML = `<span class="trygg-ok">Du har råd att leva på mer.</span> Din plan håller ≥80 % ända upp till
+          <strong>${fmtKr(maxNeed)}/mån</strong> vid ${fresh.retire} år — <strong>${fmtKr(headroom)}/mån mer</strong>
+          än du planerar (${fmtKr(fresh.needPerMonth)}). Du får unna dig. Pengarna finns för att leva, inte bara räknas.`;
       } else {
-        const headroom = maxNeed - fresh.needPerMonth;
-        if (headroom >= 500) {
-          permEl.innerHTML = `<span class="trygg-ok">Du har råd att leva på mer.</span> Din plan håller ≥80 % ända upp till
-            <strong>${fmtKr(maxNeed)}/mån</strong> vid ${fresh.retire} år — <strong>${fmtKr(headroom)}/mån mer</strong>
-            än du planerar (${fmtKr(fresh.needPerMonth)}). Du får unna dig. Pengarna finns för att leva, inte bara räknas.`;
-        } else {
-          permEl.innerHTML = `Du ligger nära taket: <strong>${fmtKr(maxNeed)}/mån</strong> är ungefär så högt du kan gå
-            vid ${fresh.retire} år och fortfarande hålla ≥80 %. Vill du leva på mer — jobba något år till eller spara lite mer.`;
-        }
+        permEl.innerHTML = `Du ligger nära taket: <strong>${fmtKr(maxNeed)}/mån</strong> är ungefär så högt du kan gå
+          vid ${fresh.retire} år och fortfarande hålla ≥80 %. Vill du leva på mer — jobba något år till eller spara lite mer.`;
       }
     }, 280);
   }
