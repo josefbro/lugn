@@ -1680,6 +1680,39 @@ function runBacktest(inputs, allocWorld) {
            decumYears, firstY, lastY };
 }
 
+// Statistik över de två marknaderna (årsavkastning SEK, 1970–2025).
+// Cachas eftersom den inte beror på allokeringen.
+let _marketStats = null;
+function marketStats() {
+  if (_marketStats) return _marketStats;
+  const H = window.MARKET_HISTORY;
+  if (!H) return null;
+  const w = H.world.returns, s = H.sweden.returns, fx = H.usdSek.rates;
+  const worldSek = y => (1 + w[y]) * (fx[y] / fx[y-1]) - 1;
+  const rw = [], rs = [];
+  for (let y = 1970; y <= 2025; y++) {
+    if (w[y] == null || s[y] == null || fx[y] == null || fx[y-1] == null) continue;
+    rw.push(worldSek(y)); rs.push(s[y]);
+  }
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const std  = a => { const m = mean(a); return Math.sqrt(a.reduce((t, x) => t + (x-m)**2, 0) / a.length); };
+  const ma = mean(rw), mb = mean(rs);
+  const cov = rw.reduce((t, _, i) => t + (rw[i]-ma)*(rs[i]-mb), 0) / rw.length;
+  const sw = std(rw), ss = std(rs), rho = cov / (sw * ss);
+  // Minsta-varians-vikt på World: w* = (σs² − cov) / (σw² + σs² − 2cov)
+  let wmv = (ss*ss - cov) / (sw*sw + ss*ss - 2*cov);
+  wmv = Math.max(0, Math.min(1, wmv));
+  _marketStats = { sigmaWorld: sw, sigmaSwe: ss, cov, rho, minVarAlloc: wmv };
+  return _marketStats;
+}
+
+// Portföljens standardavvikelse vid en given World-vikt.
+function blendStd(allocWorld) {
+  const m = marketStats(); if (!m) return null;
+  const w = allocWorld, sw = m.sigmaWorld, ss = m.sigmaSwe, cov = m.cov;
+  return Math.sqrt(w*w*sw*sw + (1-w)*(1-w)*ss*ss + 2*w*(1-w)*cov);
+}
+
 // Tillväxtserier (1 kr investerad 1970) i SEK för World, SIXRX och mix.
 function historySeries(allocWorld) {
   const H = window.MARKET_HISTORY;
@@ -1747,14 +1780,15 @@ function renderHistoryChart(allocWorld) {
   line("world", "#3a5a40", 1.8);   // MSCI World SEK — sage
   line("blend", "#4a6b8a", 2.6);   // Din mix — blå, tjockare
 
-  // Snittavkastning per år
+  // Snittavkastning/år (CAGR) + standardavvikelse (σ) per linje
   const avg = document.getElementById("histAvg");
-  if (avg) {
+  const m = marketStats();
+  if (avg && m) {
     const f = x => (x*100).toFixed(1) + "%";
     avg.innerHTML = `
-      <span class="ha"><span class="hd" style="background:#3a5a40"></span>MSCI World (SEK) <b>${f(data.cagrWorld)}/år</b></span>
-      <span class="ha"><span class="hd" style="background:#c46d4d"></span>SIXRX <b>${f(data.cagrSixrx)}/år</b></span>
-      <span class="ha"><span class="hd" style="background:#4a6b8a"></span>Din mix <b>${f(data.cagrBlend)}/år</b></span>`;
+      <span class="ha"><span class="hd" style="background:#3a5a40"></span>MSCI World (SEK) <b>${f(data.cagrWorld)}/år</b> <span class="hsig">σ ${f(m.sigmaWorld)}</span></span>
+      <span class="ha"><span class="hd" style="background:#c46d4d"></span>SIXRX <b>${f(data.cagrSixrx)}/år</b> <span class="hsig">σ ${f(m.sigmaSwe)}</span></span>
+      <span class="ha"><span class="hd" style="background:#4a6b8a"></span>Din mix <b>${f(data.cagrBlend)}/år</b> <span class="hsig">σ ${f(blendStd(allocWorld))}</span></span>`;
   }
 }
 
@@ -1772,7 +1806,17 @@ function renderBacktest() {
   const pct = Math.round(bt.successRate * 100);
   const cls = pct >= 90 ? "good" : pct >= 75 ? "ok" : "warn";
   const lbl = document.getElementById("allocLabel");
-  if (lbl) lbl.textContent = `${Math.round(allocWorld*100)}% international / ${Math.round((1-allocWorld)*100)}% Sverige`;
+  const ms = marketStats();
+  if (lbl) {
+    const atMinVar = ms && Math.abs(allocWorld - ms.minVarAlloc) < 0.03;
+    lbl.innerHTML = `${Math.round(allocWorld*100)}% international / ${Math.round((1-allocWorld)*100)}% Sverige`
+      + (atMinVar ? ` <span class="minvar-tag">lägst risk</span>` : (ms ? ` · <a class="minvar-link" id="minVarLink">lägst risk vid ${Math.round(ms.minVarAlloc*100)}%</a>` : ""));
+    const ml = document.getElementById("minVarLink");
+    if (ml) ml.onclick = () => {
+      const as = document.getElementById("allocSlider");
+      as.value = Math.round(ms.minVarAlloc*100); as._userMoved = true; renderBacktest();
+    };
+  }
 
   renderHistoryChart(allocWorld);
 
@@ -1964,7 +2008,10 @@ $("srSlider")?.addEventListener("input", () => {
   updateSrSliderDisplay();
 });
 
-document.getElementById("allocSlider")?.addEventListener("input", renderBacktest);
+document.getElementById("allocSlider")?.addEventListener("input", () => {
+  document.getElementById("allocSlider")._userMoved = true;
+  renderBacktest();
+});
 
 // Avancerade inställningar toggle
 // ISK vs AF: wire inputs
@@ -2007,6 +2054,10 @@ $("allmanMonthly")?.addEventListener("input", () => {
 
 window.addEventListener("DOMContentLoaded", () => {
   populateKommunList();
+  // Sätt allokerings-slidern till minsta-varians-portföljen som default
+  const as = document.getElementById("allocSlider");
+  const ms = marketStats();
+  if (as && ms && !as._userMoved) as.value = Math.round(ms.minVarAlloc * 100);
   setupLifestyleChips();
   setupShockChips();
   applyOnboardingAnswers();
