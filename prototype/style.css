@@ -923,6 +923,7 @@ canvas {
   vertical-align: middle;
   margin-right: 5px;
 }
+.hc-cross { color: var(--coral-600); font-weight: 500; margin-left: auto; }
 
 .microcopy {
   margin-top: 22px;

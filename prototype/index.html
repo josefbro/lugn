@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=51">
-<link rel="stylesheet" href="onboarding.css?v=51">
+<link rel="stylesheet" href="style.css?v=52">
+<link rel="stylesheet" href="onboarding.css?v=52">
 </head>
 <body>
 
@@ -578,6 +578,18 @@
             </div>
           </div>
 
+          <!-- Human capital → finansiellt kapital -->
+          <div class="chart-panel chart-full" id="hcPanel">
+            <h4>Från arbetsförmåga till kapital <span class="chart-sub">— din North Star</span></h4>
+            <p class="chart-help">Frihet är inte ett magiskt tal — det är när du har omvandlat din <strong>arbetsförmåga</strong> (nuvärdet av framtida löner) till <strong>finansiellt kapital</strong> som jobbar åt dig. Dra i frihetsåldern och se växlingen.</p>
+            <canvas id="hcChart" width="1120" height="300"></canvas>
+            <div class="legend">
+              <span class="leg-dot" style="background:#c46d4d"></span> Arbetsförmåga (human capital)
+              <span class="leg-dot" style="background:#3a5a40"></span> Finansiellt kapital
+              <span class="hc-cross" id="hcCrossNote"></span>
+            </div>
+          </div>
+
           <!-- ═══ FÖRDJUPNING — hopfällbara verktyg & analys ═══════════════════ -->
           <details class="deepdive">
             <summary class="deepdive-summary">
@@ -768,9 +780,9 @@
   <span class="reset-fab-icon">↺</span><span class="reset-fab-label"> Ta om frågorna</span>
 </button>
 
-<script src="kommunalskatt.js?v=51"></script>
-<script src="market_history.js?v=51"></script>
-<script src="onboarding.js?v=51"></script>
-<script src="app.js?v=51"></script>
+<script src="kommunalskatt.js?v=52"></script>
+<script src="market_history.js?v=52"></script>
+<script src="onboarding.js?v=52"></script>
+<script src="app.js?v=52"></script>
 </body>
 </html>

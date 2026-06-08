@@ -649,6 +649,75 @@ function drawCharts(flows, retireAge, mcData) {
   drawBridgeChart(flows, retireAge);
 }
 
+// Human capital (nuvärde av framtida löner) → finansiellt kapital. Visar frihet
+// som omvandlingen av arbetsförmåga till tillgångar, inte ett magiskt tal.
+function drawHumanCapitalChart(flows, inputs) {
+  const c = $("hcChart");
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  const W = c.width, H = c.height;
+  ctx.clearRect(0, 0, W, H);
+  const crossEl = $("hcCrossNote");
+  const salary = numv("salary");
+
+  if (salary <= 0 || flows.length < 2 || inputs.retire <= inputs.age) {
+    ctx.fillStyle = "#8a8a8a"; ctx.textAlign = "center";
+    ctx.font = "14px -apple-system, system-ui, sans-serif";
+    ctx.fillText("Ange din månadslön för att se din arbetsförmåga omvandlas till kapital.", W / 2, H / 2);
+    if (crossEl) crossEl.textContent = "";
+    return;
+  }
+
+  const age0 = inputs.age, retire = inputs.retire;
+  const d = Math.max(0.001, inputs.realReturn / 100);   // real diskonteringsränta
+  const annualIncome = salary * 12;                      // real, konstant
+
+  const hcAt = (a) => {                                   // nuvärde av kvarvarande löner
+    let pv = 0;
+    for (let t = a; t < retire; t++) pv += annualIncome / Math.pow(1 + d, t - a);
+    return pv;
+  };
+  const fcAt = (a) => { const f = flows.find(x => x.age === a); return f ? Math.max(0, f.totalCapital) : 0; };
+
+  const data = [];
+  for (let a = age0; a <= retire; a++) data.push({ a, hc: hcAt(a), fc: fcAt(a) });
+  const maxTot = Math.max(...data.map(p => p.hc + p.fc), 1);
+
+  const padL = 60, padR = 12, padT = 16, padB = 36;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const xFor = a => padL + (a - age0) / Math.max(1, retire - age0) * plotW;
+  const yFor = v => padT + plotH - Math.max(0, Math.min(1, v / maxTot)) * plotH;
+
+  ctx.font = "11px -apple-system, system-ui, sans-serif";
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + plotH / 4 * i, v = maxTot * (1 - i / 4);
+    ctx.strokeStyle = "#1a1a1a10"; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillStyle = "#8a8a8a"; ctx.textAlign = "right"; ctx.fillText(fmtKr(v).replace(" kr", ""), padL - 4, y + 4);
+  }
+
+  const drawArea = (key, base, color) => {
+    ctx.beginPath();
+    data.forEach((p, i) => { const x = xFor(p.a), y = yFor(base(p)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    for (let i = data.length - 1; i >= 0; i--) { const p = data[i]; ctx.lineTo(xFor(p.a), yFor(base(p) + p[key])); }
+    ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+  };
+  drawArea("fc", () => 0, "#3a5a40");           // finansiellt kapital (botten)
+  drawArea("hc", (p) => p.fc, "#c46d4d");       // arbetsförmåga (ovanpå)
+
+  ctx.fillStyle = "#8a8a8a"; ctx.textAlign = "center";
+  const step = Math.max(1, Math.ceil((retire - age0) / 6));
+  for (let a = age0; a <= retire; a += step) ctx.fillText(a, xFor(a), H - 12);
+
+  ctx.strokeStyle = "#c46d4d"; ctx.setLineDash([4, 4]); ctx.beginPath();
+  ctx.moveTo(xFor(retire), padT); ctx.lineTo(xFor(retire), padT + plotH); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = "#c46d4d"; ctx.textAlign = "right"; ctx.fillText("frihet " + retire, xFor(retire) - 4, padT + 12);
+
+  const cross = data.find(p => p.fc > p.hc);
+  if (crossEl) crossEl.textContent = cross
+    ? `↔ Vid ${cross.a} år väger kapitalet tyngre än din arbetsförmåga`
+    : "";
+}
+
 // Full livscykel: sparande → topp vid frihet → uttag/nedtrappning.
 function drawAccumChart(flows, retireAge, mcData) {
   const c = $("accumChart");
@@ -1189,6 +1258,7 @@ function recalc() {
 
   // Charts: rita deterministisk direkt, MC-fan med kort fördröjning
   drawCharts(result.flows, inputs.retire, _lastMcData);
+  drawHumanCapitalChart(result.flows, inputs);
   updateReversecalc(inputs);
 
   // MC-simulering: fördröj 300ms så UI:t inte hänger vid snabb input
