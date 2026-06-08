@@ -70,24 +70,6 @@ window.MARKET_HISTORY = {
       2025:0.1267
     }
   },
-  // Svenska 10-åriga statsobligationer — nominell total return (decimal), 1988–2025.
-  // Konverterad från SEGVB10YC (Riksbanken SWEA API) via constant-maturity TR-approx:
-  //   TR_y ≈ y₀ − D·Δy + D²/2·(Δy)²,  D ≈ 8 (mod. duration på par 10y).
-  // Genererad av scripts/fetch_riksbank_bonds.py (kör om för att uppdatera).
-  // Framtid: kan även hämtas runtime från api.riksbank.se/swea/v1 (CORS *).
-  bondsSE: {
-    label: "Svenska statsobligationer 10y",
-    source: "Riksbanken SWEA API (SEGVB10YC), duration-approximerad TR",
-    returns: {
-      1988:0.1904,1989:-0.0394,1990:0.1753,1991:0.322,1992:0.1063,1993:0.3483,
-      1994:-0.1871,1995:0.3146,1996:0.2324,1997:0.1272,1998:0.2137,1999:-0.0741,
-      2000:0.1293,2001:0.0102,2002:0.106,2003:0.0415,2004:0.11,2005:0.097,
-      2006:-0.0035,2007:-0.0042,2008:0.2084,2009:-0.0429,2010:0.035,2011:0.1743,
-      2012:0.0227,2013:-0.0608,2014:0.1604,2015:0.0049,2016:0.0461,2017:-0.0128,
-      2018:0.0333,2019:0.0299,2020:0.0117,2021:-0.0163,2022:-0.1598,2023:0.0579,
-      2024:-0.0023,2025:-0.011
-    }
-  },
   // USD/SEK årsslut (SEK per USD), 1969–2025. KÄLLA: FRED EXSDUS (St. Louis Fed),
   // december-värden. 1969 = peg-baslinje (Bretton Woods ~5,16) för 1970-ratio.
   // Används för att räkna om USD-serierna (World, World ex-USA) till SEK —

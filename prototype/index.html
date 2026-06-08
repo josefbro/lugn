@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=57">
-<link rel="stylesheet" href="onboarding.css?v=57">
+<link rel="stylesheet" href="style.css?v=58">
+<link rel="stylesheet" href="onboarding.css?v=58">
 </head>
 <body>
 
@@ -413,10 +413,6 @@
               <span>AP7-glidbana <span class="input-hint">trappa ner aktier mot pension (livscykel)</span></span>
               <input type="checkbox" id="glidbana">
             </label>
-            <label class="toggle-label">
-              <span>Exkludera räntekrisen 1990–94 <span class="input-hint">räkna obligationsstatistik utan Sveriges valutaförsvar (extrem σ)</span></span>
-              <input type="checkbox" id="excludeRateCrisis">
-            </label>
           </div>
         </div>
 
@@ -664,17 +660,6 @@
             </div>
             <div class="alloc-current" id="allocLabel">100% international</div>
             <div class="alloc-optim" id="allocOptim"></div>
-
-            <!-- Räntor (bonds) -->
-            <div class="alloc-row" id="bondRow">
-              <span class="alloc-end">Aktier<br><small>av portföljen</small></span>
-              <input type="range" id="bondSlider" min="0" max="80" value="0" step="5">
-              <span class="alloc-end">Räntor<br><small>SE 10y stats</small></span>
-            </div>
-            <div class="alloc-current" id="bondLabel">0% räntor (100% aktier) · framåtblickande σ —</div>
-            <p class="chart-help" id="bondHint" style="margin-top:6px">
-              Räntor sänker variansen i Monte Carlo-banorna. Påverkar inte det historiska stresstestet (svensk bondsdata börjar 1988, equity 1970).
-            </p>
             <details class="homebias-note">
               <summary>Varför ändå en del Sverige? (forskning)</summary>
               <p>Min-varians pekar här på 100% global eftersom svenska börsen är ovanligt <strong>koncentrerad och volatil</strong> (σ 25% vs 18%) — och i historien har dollarn dämpat globala fall i SEK. Men det är bakåtblickande och ignorerar avkastning.</p>
@@ -802,9 +787,9 @@
   <span class="reset-fab-icon">↺</span><span class="reset-fab-label"> Ta om frågorna</span>
 </button>
 
-<script src="kommunalskatt.js?v=57"></script>
-<script src="market_history.js?v=57"></script>
-<script src="onboarding.js?v=57"></script>
-<script src="app.js?v=57"></script>
+<script src="kommunalskatt.js?v=58"></script>
+<script src="market_history.js?v=58"></script>
+<script src="onboarding.js?v=58"></script>
+<script src="app.js?v=58"></script>
 </body>
 </html>

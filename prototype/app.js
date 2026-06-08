@@ -233,17 +233,6 @@ function volAtAge(age) {
 
 let _glidbana = false;   // sätts av toggle i avancerat
 
-// Räntekris-toggle: utesluter 1990–94 (svenska valutaförsvaret, 500%-räntan)
-// från obligationsstatistiken. Hela serien finns kvar i MARKET_HISTORY — bara
-// statistik-beräkningen filtreras. Cachen i marketStats() invalideras vid byte.
-const RATE_CRISIS_YEARS = new Set([1990, 1991, 1992, 1993, 1994]);
-let _excludeRateCrisis = false;
-function setExcludeRateCrisis(flag) {
-  if (_excludeRateCrisis === flag) return;
-  _excludeRateCrisis = flag;
-  _marketStats = null;   // tvinga omräkning
-}
-
 // Allmän pension: inkomstpension (16%) + premiepension (2,5%) av 18,5%.
 const PREMIE_SHARE   = 2.5 / 18.5;   // ≈ 13,5% av allmän pension
 const INKOMST_SHARE  = 16  / 18.5;   // ≈ 86,5%
@@ -424,58 +413,13 @@ function simulate(inputs, opts = {}) {
 }
 
 // ─── Monte Carlo ─────────────────────────────────────────────────────────────
-// Fat-tailed MULTIVARIATE MC: R_t = μ + sqrt(ν/χ²ν) · L · Z
-//   Z ~ N(0, I)   L = chol(Σ)   χ²ν ~ Chi-squared(ν)
-// Detta är en multivariat Student-t (ν=5 default → tjocka svansar) som även
-// bevarar tillgångars korrelationer via Cholesky-faktorisering av Σ. Ersätter
-// den gamla univariata samplingen som ignorerade både korrelation och
-// variansreduktionen från obligationer.
+// Fat-tailed MC: real return ~ skalad Student-t (tjocka svansar).
+// Verkliga börsavkastningar har fler extremutfall än normalfördelningen antar
+// (svarta svanar: 2008, 2020). Student-t med ν=5 fångar detta.
 const MC_PATHS    = 5_000;
-const MC_NU       = 5;     // frihetsgrader — lägre = tjockare svansar
-// Legacy konstanter — behålls för chock-/glidbane-visningar som ännu inte
-// migrerats till MVT-vägen. Nya MC-banor använder ASSET_CLASSES_DEFAULT nedan.
 const MC_MU_REAL  = 0.05;
 const MC_SIGMA    = 0.17;
-
-// Tillgångsklass-katalog. μ = förväntad real årsavkastning, σ = årlig std.
-// Defaults är fallback-värden — om historik finns (window.MARKET_HISTORY) så
-// fyller buildAssetUniverse() i empiriska σ/ρ från marketStats() istället.
-const ASSET_CLASSES_DEFAULT = {
-  world:    { label: "MSCI World (SEK)", mu: 0.05, sigma: 0.17 },
-  sweden:   { label: "SIXRX",            mu: 0.05, sigma: 0.18 },
-  bondsSE:  { label: "Svenska statsobligationer", mu: 0.01, sigma: 0.05 },
-};
-const ASSET_KEYS = ["world", "sweden", "bondsSE"];
-// Fallback-korrelationsmatris. Ersätts av empiriska värden om data finns.
-const CORR_DEFAULT = [
-  [ 1.00,  0.75, -0.10 ],
-  [ 0.75,  1.00, -0.10 ],
-  [-0.10, -0.10,  1.00 ],
-];
-
-// Bygg σ-vektor och Σ från historiska data om de finns; annars defaults.
-// Empiriskt 1988–2025 (n=38, Riksbanken SEGVB10YC duration-approximerad TR):
-//   σ_bonds ≈ 0.12 — högre än "vanliga" 5%, eftersom 1990–94 hade extrema
-//     yield-rörelser. Vi rapporterar ärligt och förlitar oss på korrelationen.
-//   ρ(World, bonds) ≈ +0.10, ρ(SIXRX, bonds) ≈ 0. Variansreduktionen kommer
-//     alltså från låg/ingen korrelation snarare än negativ — fortfarande en
-//     reell diversifieringsvinst, bara mindre dramatisk än lärobokens "−0.3".
-function buildAssetUniverse() {
-  const ms = (typeof marketStats === "function") ? marketStats() : null;
-  const sigmas = ASSET_KEYS.map(k => ASSET_CLASSES_DEFAULT[k].sigma);
-  const corr = CORR_DEFAULT.map(row => row.slice());
-  if (ms) {
-    sigmas[0] = ms.sigmaWorld;
-    sigmas[1] = ms.sigmaSwe;
-    corr[0][1] = corr[1][0] = ms.rho;
-    if (ms.bondStats) {
-      sigmas[2] = ms.bondStats.sigmaBond;
-      corr[0][2] = corr[2][0] = ms.bondStats.rhoWorldBond;
-      corr[1][2] = corr[2][1] = ms.bondStats.rhoSweBond;
-    }
-  }
-  return { sigmas, corr };
-}
+const MC_NU       = 5;     // frihetsgrader — lägre = tjockare svansar
 
 // Box-Muller normalfördelad slumptal
 function randn() {
@@ -483,175 +427,38 @@ function randn() {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-// Chi-square(k) via summa av k kvadrerade normaler (endast positivt heltal k).
-// Behålls för bakåtkompatibilitet; MVT-vägen använder randChi2Cont nedan.
+// Chi-square(k) via summa av k kvadrerade normaler
 function randChi2(k) {
   let s = 0;
   for (let i = 0; i < k; i++) { const z = randn(); s += z * z; }
   return s;
 }
 
-// Gamma(α, 1) via Marsaglia–Tsang (acceptance-rejection). Stödjer godtyckligt α>0.
-function randGamma(alpha) {
-  if (alpha < 1) {
-    // Ahrens-Dieter boost: Gamma(α) = Gamma(α+1) · U^(1/α)
-    const g = randGamma(alpha + 1);
-    return g * Math.pow(Math.random(), 1 / alpha);
-  }
-  const d = alpha - 1 / 3;
-  const c = 1 / Math.sqrt(9 * d);
-  for (;;) {
-    let z, v;
-    do { z = randn(); v = 1 + c * z; } while (v <= 0);
-    v = v * v * v;
-    const u = Math.random();
-    if (u < 1 - 0.0331 * z * z * z * z) return d * v;
-    if (Math.log(u) < 0.5 * z * z + d * (1 - v + Math.log(v))) return d * v;
-  }
-}
-
-// Chi-squared(ν) för godtycklig ν > 0: χ²(ν) = 2·Gamma(ν/2, 1).
-// (Mer flexibel än sum-of-squares-vägen, som kräver heltals-ν.)
-function randChi2Cont(nu) { return 2 * randGamma(nu / 2); }
-
-// Student-t (univariat), skalad till enhetsvarians. Behålls som hjälpare.
+// Student-t-fördelat slumptal, skalat till enhetsvarians.
+// t = Z / sqrt(W/ν), sedan × sqrt((ν-2)/ν) för std = 1.
 function randStudentT(nu = MC_NU) {
   const z = randn();
-  const w = randChi2Cont(nu);
+  const w = randChi2(nu);
   const t = z / Math.sqrt(w / nu);
   return t * Math.sqrt((nu - 2) / nu);
 }
 
-// Cholesky-faktorisering av en symmetrisk positivt-definit matris Σ.
-// Returnerar nedre triangulär L så att L·Lᵀ = Σ.
-function cholesky(sigma) {
-  const n = sigma.length;
-  const L = Array.from({ length: n }, () => new Array(n).fill(0));
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j <= i; j++) {
-      let s = sigma[i][j];
-      for (let k = 0; k < j; k++) s -= L[i][k] * L[j][k];
-      if (i === j) {
-        if (s <= 0) throw new Error(`Σ not positive-definite at (${i},${i})`);
-        L[i][j] = Math.sqrt(s);
-      } else {
-        L[i][j] = s / L[j][j];
-      }
-    }
-  }
-  return L;
-}
-
-// Bygg kovariansmatris från σ-vektor + korrelationsmatris: Σ_ij = σ_i σ_j ρ_ij.
-function buildCovariance(sigmas, corr) {
-  const n = sigmas.length;
-  const S = Array.from({ length: n }, () => new Array(n).fill(0));
-  for (let i = 0; i < n; i++)
-    for (let j = 0; j < n; j++)
-      S[i][j] = sigmas[i] * sigmas[j] * corr[i][j];
-  return S;
-}
-
-// Sampla en MVT-avkastningsvektor R = μ + √(ν/χ²ν) · L · Z, Z ~ N(0,I).
-// L måste motsvara μ:s tillgångsordning.
-function sampleMvtReturns(mu, L, nu = MC_NU) {
-  const n = mu.length;
-  const chi2 = randChi2Cont(nu);
-  const scale = Math.sqrt(nu / chi2);             // gemensam svans-skalfaktor
-  const Z = Array.from({ length: n }, () => randn());
-  const R = new Array(n);
-  for (let i = 0; i < n; i++) {
-    let lz = 0;
-    for (let k = 0; k <= i; k++) lz += L[i][k] * Z[k];   // (L·Z)_i
-    R[i] = mu[i] + scale * lz;
-  }
-  return R;
-}
-
-// Portfölj-vikter vid en given ålder. Glidbana lägger gradvis över i obligationer.
-// allocWorld = andel av AKTIEDELEN som är World; resten är SIXRX. Slidern (DOM)
-// styr värdet — fallback 1.0 (100% World) om elementet saknas.
-function currentAllocWorld() {
-  const v = +document.getElementById("allocSlider")?.value;
-  return Number.isFinite(v) ? v / 100 : 1.0;
-}
-// Användarens explicita ränteandel (0–80%). Returneras endast när glidbana är AV;
-// glidbanan styr annars ränteandelen åldersberoende.
-function currentBondFrac() {
-  if (_glidbana) return 0;
-  const v = +document.getElementById("bondSlider")?.value;
-  return Number.isFinite(v) ? v / 100 : 0;
-}
-function portfolioWeightsAtAge(age, inputs) {
-  const aw = inputs.allocWorld != null ? inputs.allocWorld : currentAllocWorld();
-  let eqFrac;
-  if (_glidbana) {
-    eqFrac = equityFractionAtAge(age);
-  } else {
-    const bf = inputs.bondFrac != null ? inputs.bondFrac : currentBondFrac();
-    eqFrac = 1 - bf;
-  }
-  return [ eqFrac * aw, eqFrac * (1 - aw), 1 - eqFrac ];   // [world, sweden, bondsSE]
-}
-
-// Portföljens std-avvikelse för en given mix (aktievikt världs-andel + ränteandel),
-// beräknad från den empiriska Σ. Används för live-σ-etiketten i bondsslidern.
-function portfolioStdFromMix(allocWorld, bondFrac) {
-  const { sigmas, corr } = buildAssetUniverse();
-  const Sigma = buildCovariance(sigmas, corr);
-  const eq = 1 - bondFrac;
-  const w = [eq * allocWorld, eq * (1 - allocWorld), bondFrac];
-  let v = 0;
-  for (let i = 0; i < 3; i++)
-    for (let j = 0; j < 3; j++) v += w[i] * w[j] * Sigma[i][j];
-  return Math.sqrt(Math.max(0, v));
-}
-
-// Bygg μ-vektor från klassdef. Användarens `realReturn` tolkas som
-// "förväntad real avkastning på aktiedelen" och skalar världs/Sverige-μ
-// proportionellt — så MC-medelvärdet följer användarens knapp.
-function muVectorFromInputs(inputs) {
-  const userEq = inputs.realReturn / 100;
-  const defEq  = ASSET_CLASSES_DEFAULT.world.mu;
-  const k = defEq > 0 ? userEq / defEq : 1;
-  return [
-    ASSET_CLASSES_DEFAULT.world.mu   * k,
-    ASSET_CLASSES_DEFAULT.sweden.mu  * k,
-    ASSET_CLASSES_DEFAULT.bondsSE.mu,     // räntemarknaden följer inte aktie-knappen
-  ];
-}
-
-// Förberäkna Σ och L en gång per körning (oberoende av väg & år).
-function buildMcContext(inputs) {
-  const { sigmas, corr } = buildAssetUniverse();
-  const Sigma = buildCovariance(sigmas, corr);
-  const L     = cholesky(Sigma);
-  const mu    = muVectorFromInputs(inputs);
-  return { mu, L, Sigma, sigmas };
-}
-
-// Samplar EN årlig portföljavkastning (skalär) för år `age` givet MVT-utfallet.
-function portfolioReturnFromSample(R, age, inputs) {
-  const w = portfolioWeightsAtAge(age, inputs);
-  let r = 0;
-  for (let i = 0; i < R.length; i++) r += w[i] * R[i];
-  // Klampa: ingen bred portfölj har gjort sämre än ~−60% eller bättre än ~+100% ett år (real).
-  return Math.max(-0.60, Math.min(1.0, r));
-}
-
 function runMonteCarlo(inputs, opts = {}) {
   const years = inputs.lifespan - inputs.age + 1;
-  const ctx = buildMcContext(inputs);
   let successes = 0;
   const percentileData = [];
   const allCapitals = Array.from({ length: years }, () => []);
 
   for (let p = 0; p < MC_PATHS; p++) {
-    const ret = new Array(years);
-    for (let i = 0; i < years; i++) {
-      const R = sampleMvtReturns(ctx.mu, ctx.L, MC_NU);
-      ret[i] = portfolioReturnFromSample(R, inputs.age + i, inputs);
-    }
+    const baseMu = inputs.realReturn / 100;
+    const ret = Array.from({ length: years }, (_, i) => {
+      const age = inputs.age + i;
+      const mu  = _glidbana ? expectedRealReturnAtAge(age, inputs) : baseMu;
+      const sig = volAtAge(age);
+      // Klampa till realistiskt spann: ingen bred aktiemarknad har gjort
+      // sämre än ~−60% eller bättre än ~+100% ett enskilt år (real).
+      return Math.max(-0.60, Math.min(1.0, mu + randStudentT() * sig));
+    });
     const res = simulate(inputs, { ...opts, returnOverride: ret });
     if (!res.ran_dry) successes++;
     res.flows.forEach((f, i) => allCapitals[i].push(f.totalCapital));
@@ -767,14 +574,15 @@ const MC_PATHS_QUICK    = 600;   // lättare MC för svep/sökningar (snabbhet >
 function holdProbability(inputs, retireAge, paths = MC_PATHS_QUICK) {
   const base = { ...inputs, retire: retireAge };
   const years = base.lifespan - base.age + 1;
-  const ctx = buildMcContext(base);
+  const baseMu = base.realReturn / 100;
   let ok = 0;
   for (let p = 0; p < paths; p++) {
-    const ret = new Array(years);
-    for (let i = 0; i < years; i++) {
-      const R = sampleMvtReturns(ctx.mu, ctx.L, MC_NU);
-      ret[i] = portfolioReturnFromSample(R, base.age + i, base);
-    }
+    const ret = Array.from({ length: years }, (_, i) => {
+      const a   = base.age + i;
+      const mu  = _glidbana ? expectedRealReturnAtAge(a, base) : baseMu;
+      const sig = volAtAge(a);
+      return Math.max(-0.60, Math.min(1.0, mu + randStudentT() * sig));
+    });
     if (!simulate(base, { returnOverride: ret }).ran_dry) ok++;
   }
   return ok / paths;
@@ -1310,7 +1118,6 @@ function updatePartTimeUI() {
 
 function recalc() {
   _glidbana = !!document.getElementById("glidbana")?.checked;
-  setExcludeRateCrisis(!!document.getElementById("excludeRateCrisis")?.checked);
   _kommunalskatt = getKommunalskatt();
   const krEl = document.getElementById("kommunRate");
   if (krEl) krEl.textContent = `${(_kommunalskatt*100).toFixed(2)}% kommunalskatt`;
@@ -2515,34 +2322,8 @@ function marketStats() {
   const den = ma*ss*ss + mb*sw*sw - (ma+mb)*cov;
   let wms = den !== 0 ? num/den : 1;
   wms = Math.max(0, Math.min(1, wms));
-  // Bondsstatistik (om serien finns): μ, σ, samt korrelationer med World/SIXRX
-  // på det överlappande fönstret. Bonds är nominella SEK redan → ingen FX-konv.
-  let bondStats = null;
-  if (H.bondsSE && H.bondsSE.returns) {
-    const b = H.bondsSE.returns;
-    const rwO = [], rsO = [], rb = [];
-    for (let y = 1970; y <= 2025; y++) {
-      if (w[y] == null || s[y] == null || fx[y] == null || fx[y-1] == null || b[y] == null) continue;
-      if (_excludeRateCrisis && RATE_CRISIS_YEARS.has(y)) continue;
-      rwO.push(worldSek(y)); rsO.push(s[y]); rb.push(b[y]);
-    }
-    if (rb.length >= 10) {
-      const mbo = mean(rb), sbo = std(rb);
-      const mwO = mean(rwO), msO = mean(rsO);
-      const sWo = std(rwO),  sSo = std(rsO);
-      const covWB = rb.reduce((t, _, i) => t + (rwO[i]-mwO)*(rb[i]-mbo), 0) / rb.length;
-      const covSB = rb.reduce((t, _, i) => t + (rsO[i]-msO)*(rb[i]-mbo), 0) / rb.length;
-      bondStats = {
-        meanBond:  mbo, sigmaBond: sbo,
-        rhoWorldBond:  covWB / (sWo * sbo),
-        rhoSweBond:    covSB / (sSo * sbo),
-        nOverlap: rb.length,
-      };
-    }
-  }
   _marketStats = { sigmaWorld: sw, sigmaSwe: ss, cov, rho,
-                   meanWorld: ma, meanSwe: mb, minVarAlloc: wmv, maxSharpeAlloc: wms,
-                   bondStats };
+                   meanWorld: ma, meanSwe: mb, minVarAlloc: wmv, maxSharpeAlloc: wms };
   return _marketStats;
 }
 
@@ -2648,25 +2429,6 @@ function renderBacktest() {
   const lbl = document.getElementById("allocLabel");
   const ms = marketStats();
   if (lbl) lbl.textContent = `${Math.round(allocWorld*100)}% international / ${Math.round((1-allocWorld)*100)}% Sverige`;
-
-  // Bond-sliderns etikett: visa ränteandel + portföljens σ för aktuell mix.
-  // När glidbana är på äger den ränteandelen → inaktivera slider och säg det.
-  const bondSlider = document.getElementById("bondSlider");
-  const bondLabel  = document.getElementById("bondLabel");
-  const bondHint   = document.getElementById("bondHint");
-  if (bondSlider && bondLabel) {
-    if (_glidbana) {
-      bondSlider.disabled = true;
-      bondLabel.textContent = "Räntor styrs av AP7-glidbanan (åldersberoende)";
-      if (bondHint) bondHint.style.opacity = "0.5";
-    } else {
-      bondSlider.disabled = false;
-      const bf  = (+bondSlider.value) / 100;
-      const sig = portfolioStdFromMix(allocWorld, bf);
-      bondLabel.textContent = `${Math.round(bf*100)}% räntor (${100 - Math.round(bf*100)}% aktier) · framåtblickande σ ${(sig*100).toFixed(1)}%`;
-      if (bondHint) bondHint.style.opacity = "1";
-    }
-  }
 
   // Optimeringspunkter: min-varians + max-Sharpe (klickbara)
   const optim = document.getElementById("allocOptim");
