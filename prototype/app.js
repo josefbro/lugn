@@ -575,10 +575,36 @@ function currentAllocWorld() {
   const v = +document.getElementById("allocSlider")?.value;
   return Number.isFinite(v) ? v / 100 : 1.0;
 }
+// Användarens explicita ränteandel (0–80%). Returneras endast när glidbana är AV;
+// glidbanan styr annars ränteandelen åldersberoende.
+function currentBondFrac() {
+  if (_glidbana) return 0;
+  const v = +document.getElementById("bondSlider")?.value;
+  return Number.isFinite(v) ? v / 100 : 0;
+}
 function portfolioWeightsAtAge(age, inputs) {
   const aw = inputs.allocWorld != null ? inputs.allocWorld : currentAllocWorld();
-  const eqFrac = _glidbana ? equityFractionAtAge(age) : 1.0;
+  let eqFrac;
+  if (_glidbana) {
+    eqFrac = equityFractionAtAge(age);
+  } else {
+    const bf = inputs.bondFrac != null ? inputs.bondFrac : currentBondFrac();
+    eqFrac = 1 - bf;
+  }
   return [ eqFrac * aw, eqFrac * (1 - aw), 1 - eqFrac ];   // [world, sweden, bondsSE]
+}
+
+// Portföljens std-avvikelse för en given mix (aktievikt världs-andel + ränteandel),
+// beräknad från den empiriska Σ. Används för live-σ-etiketten i bondsslidern.
+function portfolioStdFromMix(allocWorld, bondFrac) {
+  const { sigmas, corr } = buildAssetUniverse();
+  const Sigma = buildCovariance(sigmas, corr);
+  const eq = 1 - bondFrac;
+  const w = [eq * allocWorld, eq * (1 - allocWorld), bondFrac];
+  let v = 0;
+  for (let i = 0; i < 3; i++)
+    for (let j = 0; j < 3; j++) v += w[i] * w[j] * Sigma[i][j];
+  return Math.sqrt(Math.max(0, v));
 }
 
 // Bygg μ-vektor från klassdef. Användarens `realReturn` tolkas som
@@ -2622,6 +2648,25 @@ function renderBacktest() {
   const lbl = document.getElementById("allocLabel");
   const ms = marketStats();
   if (lbl) lbl.textContent = `${Math.round(allocWorld*100)}% international / ${Math.round((1-allocWorld)*100)}% Sverige`;
+
+  // Bond-sliderns etikett: visa ränteandel + portföljens σ för aktuell mix.
+  // När glidbana är på äger den ränteandelen → inaktivera slider och säg det.
+  const bondSlider = document.getElementById("bondSlider");
+  const bondLabel  = document.getElementById("bondLabel");
+  const bondHint   = document.getElementById("bondHint");
+  if (bondSlider && bondLabel) {
+    if (_glidbana) {
+      bondSlider.disabled = true;
+      bondLabel.textContent = "Räntor styrs av AP7-glidbanan (åldersberoende)";
+      if (bondHint) bondHint.style.opacity = "0.5";
+    } else {
+      bondSlider.disabled = false;
+      const bf  = (+bondSlider.value) / 100;
+      const sig = portfolioStdFromMix(allocWorld, bf);
+      bondLabel.textContent = `${Math.round(bf*100)}% räntor (${100 - Math.round(bf*100)}% aktier) · framåtblickande σ ${(sig*100).toFixed(1)}%`;
+      if (bondHint) bondHint.style.opacity = "1";
+    }
+  }
 
   // Optimeringspunkter: min-varians + max-Sharpe (klickbara)
   const optim = document.getElementById("allocOptim");
