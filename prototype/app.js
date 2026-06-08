@@ -1056,8 +1056,19 @@ function recalc() {
       lvEl.style.display = "";
       lvEl.className = "field-note";
       const overBryt = salaryVal * 12 > BRYTPUNKT_ARBETANDE;
+      const avtal = $("avtal")?.value || "ingen";
+      const privat    = ["itp1", "itp2", "saflo"].includes(avtal);
+      const offentlig = ["akapkr", "kapkl", "pa16"].includes(avtal);
+      // Lugn räknar ordinarie TJP på lönen FÖRE växling. Men skyddet är inte
+      // automatiskt i privat sektor → varna avtals-medvetet.
+      const skydd = privat
+        ? ` <strong>Säkerställ i avtalet</strong> att din ordinarie tjänstepension beräknas på lönen <em>före</em> växling — det är inte automatiskt i privat sektor (Pensionsmynd./facken).`
+        : offentlig
+          ? ` Inom kommun/region/stat är skyddet oftast standardiserat — ordinarie pension beräknas på oreducerad lön.`
+          : ` Säkerställ med arbetsgivaren att din ordinarie tjänstepension inte sänks av växlingen.`;
       lvEl.innerHTML = `${fmtKr(lv)}/mån → ~${fmtKr(lv * VAXLINGSFAKTOR)}/mån till tjänstepension (×${VAXLINGSFAKTOR}).`
-        + (overBryt ? " Du slipper 20 % statlig skatt nu och betalar troligen lägre skatt som pensionär." : "");
+        + (overBryt ? " Du slipper 20 % statlig skatt nu." : "")
+        + skydd;
     }
   }
 
