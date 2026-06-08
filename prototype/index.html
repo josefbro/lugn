@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn — Hitta livet innan du finansierar det</title>
-<link rel="stylesheet" href="style.css?v=52">
-<link rel="stylesheet" href="onboarding.css?v=52">
+<link rel="stylesheet" href="style.css?v=54">
+<link rel="stylesheet" href="onboarding.css?v=54">
 </head>
 <body>
 
@@ -391,10 +391,11 @@
                 <option value="-1">Livsvarig</option>
               </select>
             </label>
-            <label>
-              <span>Planerar till ålder</span>
-              <input type="number" id="lifespan" value="90" min="70" max="100">
+            <label class="calc-slider-row">
+              <span>Planerar till ålder <strong id="lifespanVal">95</strong> <span class="input-hint">livslängds-stresstest</span></span>
+              <input type="range" id="lifespan" min="80" max="105" value="95" step="1">
             </label>
+            <p class="field-note" id="longevityNote"></p>
             <label>
               <span>Real avkastning %</span>
               <input type="number" id="realReturn" value="5" step="0.5">
@@ -403,6 +404,7 @@
               <span>Inflation %</span>
               <input type="number" id="inflation" value="2" step="0.5">
             </label>
+            <p class="field-note" id="inflationNote"></p>
             <label>
               <span>TJP-avsättning / mån <span class="input-hint">medan du jobbar (typ. 4,5–6% av lön)</span></span>
               <input type="text" inputmode="numeric" class="num" id="tjpContrib" value="0" step="500">
@@ -780,9 +782,9 @@
   <span class="reset-fab-icon">↺</span><span class="reset-fab-label"> Ta om frågorna</span>
 </button>
 
-<script src="kommunalskatt.js?v=52"></script>
-<script src="market_history.js?v=52"></script>
-<script src="onboarding.js?v=52"></script>
-<script src="app.js?v=52"></script>
+<script src="kommunalskatt.js?v=54"></script>
+<script src="market_history.js?v=54"></script>
+<script src="onboarding.js?v=54"></script>
+<script src="app.js?v=54"></script>
 </body>
 </html>

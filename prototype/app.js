@@ -649,6 +649,34 @@ function drawCharts(flows, retireAge, mcData) {
   drawBridgeChart(flows, retireAge);
 }
 
+// Stresstest-noter: livslängd (arv vs slut) + inflation (köpkraftsspegel).
+function renderStressNotes(inputs, result) {
+  const lvVal = $("lifespanVal");
+  if (lvVal) lvVal.textContent = inputs.lifespan;
+
+  const lnEl = $("longevityNote");
+  if (lnEl) {
+    const dry = result.flows.find(f => f.age > inputs.retire && f.age < inputs.lifespan && f.totalCapital <= 1);
+    if (dry) {
+      lnEl.className = "field-note lv-warn";
+      lnEl.innerHTML = `Pengarna tar slut vid ~<strong>${dry.age} år</strong> — före din planerade ${inputs.lifespan}. Lever du längre ökar risken; lever du kortare hade det räckt.`;
+    } else {
+      lnEl.className = "field-note";
+      lnEl.innerHTML = `Vid ${inputs.lifespan} år: ~<strong>${fmtKr(result.finalCapital)}</strong> kvar att lämna i arv. Lever du kortare blir överskottet större — planera långt, en 65-åring når ofta 90+.`;
+    }
+  }
+
+  const inEl = $("inflationNote");
+  if (inEl) {
+    const infl = inputs.inflation / 100;
+    const yrs  = Math.max(0, inputs.retire - inputs.age);
+    const pp100 = 100 / Math.pow(1 + infl, yrs);
+    const nominalNeed = inputs.needPerMonth * Math.pow(1 + infl, yrs);
+    inEl.className = "field-note";
+    inEl.innerHTML = `Vid ${inputs.inflation}% inflation har 100 kr tappat till ~<strong>${Math.round(pp100)} kr</strong> köpkraft till din frihet (${yrs} år). Din ${fmtKr(inputs.needPerMonth)}/mån kostar då ~${fmtKr(nominalNeed)}/mån i löpande pengar — planen räknar redan med det.`;
+  }
+}
+
 // Human capital (nuvärde av framtida löner) → finansiellt kapital. Visar frihet
 // som omvandlingen av arbetsförmåga till tillgångar, inte ett magiskt tal.
 function drawHumanCapitalChart(flows, inputs) {
@@ -1259,6 +1287,7 @@ function recalc() {
   // Charts: rita deterministisk direkt, MC-fan med kort fördröjning
   drawCharts(result.flows, inputs.retire, _lastMcData);
   drawHumanCapitalChart(result.flows, inputs);
+  renderStressNotes(inputs, result);
   updateReversecalc(inputs);
 
   // MC-simulering: fördröj 300ms så UI:t inte hänger vid snabb input

@@ -119,7 +119,7 @@ function computeRecommendation(el) {
   const tjpContrib    = tjpContribFromAvtal(avtal, salary) || 0; // kr/mån avsättning
 
   const inputs = {
-    age, retire: retireAge, lifespan: 90,
+    age, retire: retireAge, lifespan: 95,
     needPerMonth, savingsPerMonth: monthlySav,
     iskBalance: totalSaved, kfBalance: 0, depaBalance: 0,
     tjpPott: 0, tjpPeriod: 20, tjpContrib, avtal,
