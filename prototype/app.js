@@ -1901,31 +1901,61 @@ function computeFeeDrag(initial, monthly, years, grossReturn, highFee, lowFee) {
 function renderFeeDrag() {
   const el = document.getElementById("feeDragResult");
   if (!el) return;
-  const initial = getInputs().iskBalance;
-  const monthly = getInputs().savingsPerMonth;
-  const years   = Math.max(5, 65 - getInputs().age);
-  const gross   = getInputs().realReturn + getInputs().inflation;
+  const inputs  = getInputs();
+  const initial = inputs.iskBalance;
+  const monthly = inputs.savingsPerMonth;
+  const years   = Math.max(5, Math.min(40, inputs.lifespan - inputs.age));
+  const gross   = inputs.realReturn + inputs.inflation;
   const highFee = +document.getElementById("feeHigh")?.value || 1.5;
   const lowFee  = +document.getElementById("feeLow")?.value  || 0.2;
 
   const r = computeFeeDrag(initial, monthly, years, gross, highFee, lowFee);
 
+  // "How much MORE would you need to save to reach the same goal with the higher fee?"
+  // Binary-search: find extra monthly contribution under highFee that matches lowFee target.
+  const targetHigh = r.low;   // we want to reach what lowFee would give
+  const rHigh = (gross - highFee) / 100;
+  let lo = 0, hi = monthly * 4;
+  for (let i = 0; i < 36; i++) {
+    const mid = (lo + hi) / 2;
+    let b = initial;
+    for (let t = 0; t < years; t++) b = b * (1 + rHigh) + (monthly + mid) * 12;
+    b >= targetHigh ? hi = mid : lo = mid;
+  }
+  const extraNeeded     = Math.max(0, Math.round((lo + hi) / 2 / 100) * 100);
+  const extraPct        = monthly > 0 ? Math.round(extraNeeded / monthly * 100) : 0;
+
+  // Simplicity-tax logic: is the 0.10% premium for auto-rebalancing worth it?
+  const isSimplicityTax = Math.abs(highFee - lowFee) <= 0.11;
+  let insight;
+  if (isSimplicityTax) {
+    insight = `<div class="fee-insight good">
+      💡 <strong>Det tunga lyftet sköter sig självt.</strong> En allt-i-ett-fond kostar ${highFee}% mot din ${lowFee}% — skillnaden är ${fmtKr(r.drag)} på ${years} år. Men en manuell portfölj som aldrig rebalanseras kan kosta <em>mer</em> i beteende: performancejakten, att sälja i botten, att aldrig fylla på. Betala ${(highFee-lowFee).toFixed(2)}% för att slippa det — det är troligen bra affär.
+    </div>`;
+  } else {
+    insight = `<div class="fee-insight warn">
+      💡 <strong>Du måste spara ${extraPct}% mer</strong> för att nå samma slutkapital med ${highFee}% avgift som med ${lowFee}%:
+      ~<strong>${fmtKr(extraNeeded)}/mån extra</strong> — varevigt, utan garantier. Att byta till indexfond är enklare.
+    </div>`;
+  }
+
   el.innerHTML = `
     <div class="fee-big">−${fmtKr(r.drag)}</div>
-    <div class="fee-sub">extra du betalar över ${years} år med ${highFee}% avgift istället för ${lowFee}%</div>
+    <div class="fee-sub">förlorad avkastning över ${years} år — ${highFee}% vs ${lowFee}% avgift</div>
     <div class="fee-bars">
       <div class="fee-bar-row">
-        <span class="fee-bar-label">${lowFee}% indexfond</span>
+        <span class="fee-bar-label">B: ${lowFee}%</span>
         <span class="fee-bar"><span class="fee-bar-fill low" style="width:100%"></span></span>
         <span class="fee-bar-val">${fmtKr(r.low)}</span>
       </div>
       <div class="fee-bar-row">
-        <span class="fee-bar-label">${highFee}% aktiv fond</span>
+        <span class="fee-bar-label">A: ${highFee}%</span>
         <span class="fee-bar"><span class="fee-bar-fill high" style="width:${Math.round(r.high/r.low*100)}%"></span></span>
         <span class="fee-bar-val">${fmtKr(r.high)}</span>
       </div>
     </div>
-    <p class="fee-note">Avgiften ser liten ut per år, men ränta-på-ränta gör den enorm över tid. Detta är en av de få saker du säkert kan kontrollera.</p>
+    ${insight}
+    <p class="fee-note">Avgiften är en av de få saker du säkert kan kontrollera — marknadsavkastning kan du inte.</p>
   `;
 }
 
@@ -2682,6 +2712,16 @@ $("advancedToggle")?.addEventListener("click", () => {
   arrow.textContent = open ? "▴" : "▾";
 });
 
+// Fee preset buttons
+document.querySelectorAll(".fee-preset").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".fee-preset").forEach(b => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    const h = $("feeHigh"), l = $("feeLow");
+    if (h) { h.value = btn.dataset.high; h.dispatchEvent(new Event("input", {bubbles:true})); }
+    if (l) { l.value = btn.dataset.low;  l.dispatchEvent(new Event("input", {bubbles:true})); }
+  });
+});
 ["feeHigh","feeLow"].forEach(id =>
   document.getElementById(id)?.addEventListener("input", renderFeeDrag));
 
