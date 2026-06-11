@@ -25,6 +25,7 @@
       companies: [],
       customers: [],
       invoices: [],
+      expenses: [],
       settings: {
         emailjs: { publicKey: "", serviceId: "", templateId: "" },
         drive: { clientId: "", fileId: "", connectedEmail: "", autoSync: false },
@@ -127,6 +128,24 @@
         message: "", // meddelande till kund
         createdAt: new Date().toISOString(),
         creditOf: null, // för kreditfaktura: id till ursprungsfaktura
+      },
+      over || {}
+    );
+  }
+
+  function newExpense(over) {
+    return Object.assign(
+      {
+        id: uid("exp"),
+        companyId: null,
+        date: todayISO(),
+        supplier: "", // leverantör
+        description: "",
+        net: 0, // belopp exkl moms
+        vatRate: 0.25, // ingående moms
+        account: "6000", // BAS-konto (kostnadskategori)
+        paid: false,
+        paymentDate: "",
       },
       over || {}
     );
@@ -285,6 +304,28 @@
     return inv;
   }
 
+  /* ── Utgifter (leverantörsfakturor / kostnader) ──────────────────────── */
+  function listExpenses(companyId) {
+    return state.expenses
+      .filter((e) => !companyId || e.companyId === companyId)
+      .slice()
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+  }
+  function getExpense(id) {
+    return state.expenses.find((e) => e.id === id) || null;
+  }
+  function upsertExpense(exp) {
+    const idx = state.expenses.findIndex((e) => e.id === exp.id);
+    if (idx >= 0) state.expenses[idx] = exp;
+    else state.expenses.push(exp);
+    save();
+    return exp;
+  }
+  function deleteExpense(id) {
+    state.expenses = state.expenses.filter((e) => e.id !== id);
+    save();
+  }
+
   /* ── Export / import ──────────────────────────────────────────────────── */
   function exportJSON() {
     return JSON.stringify(state, null, 2);
@@ -298,7 +339,7 @@
         arr.forEach((x) => (m[x.id] = x));
         return m;
       };
-      ["companies", "customers", "invoices"].forEach((k) => {
+      ["companies", "customers", "invoices", "expenses"].forEach((k) => {
         const cur = byId(state[k]);
         (parsed[k] || []).forEach((x) => (cur[x.id] = x));
         state[k] = Object.values(cur);
@@ -323,6 +364,7 @@
     newCustomer,
     newLine,
     newInvoice,
+    newExpense,
     // datum
     todayISO,
     addDaysISO,
@@ -345,6 +387,11 @@
     upsertInvoice,
     deleteInvoice,
     assignNumber,
+    // utgifter
+    listExpenses,
+    getExpense,
+    upsertExpense,
+    deleteExpense,
     // i/o
     exportJSON,
     importJSON,

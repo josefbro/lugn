@@ -102,6 +102,9 @@
       case "customers":
         app().innerHTML = viewCustomers();
         break;
+      case "bokforing":
+        app().innerHTML = viewBokforing();
+        break;
       case "companies":
         app().innerHTML = viewCompanies();
         break;
@@ -296,6 +299,353 @@
       glyph +
       "</button>"
     );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════
+     BOKFÖRING
+     ════════════════════════════════════════════════════════════════════ */
+  let bokTab = "verifikationer";
+  let bokFrom = null;
+  let bokTo = null;
+
+  function ensurePeriod() {
+    if (!bokFrom || !bokTo) {
+      const y = S().todayISO().slice(0, 4);
+      bokFrom = y + "-01-01";
+      bokTo = y + "-12-31";
+    }
+  }
+
+  function viewBokforing() {
+    ensurePeriod();
+    const co = S().getActiveCompany();
+    const cid = co ? co.id : null;
+    const tabs = [
+      ["verifikationer", "Verifikationer"],
+      ["huvudbok", "Huvudbok"],
+      ["utgifter", "Utgifter"],
+      ["moms", "Momsrapport"],
+      ["export", "Skatt &amp; export"],
+    ];
+    const tabBtns = tabs
+      .map(
+        (t) =>
+          '<button class="btn btn-sm ' +
+          (bokTab === t[0] ? "btn-primary" : "btn-ghost") +
+          '" data-action="bok-tab" data-id="' +
+          t[0] +
+          '">' +
+          t[1] +
+          "</button>"
+      )
+      .join("");
+
+    let body = "";
+    if (bokTab === "verifikationer") body = bokVerifikationer(cid);
+    else if (bokTab === "huvudbok") body = bokHuvudbok(cid);
+    else if (bokTab === "utgifter") body = bokUtgifter(cid);
+    else if (bokTab === "moms") body = bokMoms(cid);
+    else if (bokTab === "export") body = bokExport(cid);
+
+    const showPeriod = bokTab !== "utgifter";
+
+    return (
+      '<div class="page-head"><div><h1>Bokföring</h1><p>Automatisk dubbel bokföring från dina fakturor och utgifter — underlag för Skatteverket.</p></div></div>' +
+      '<div class="btn-row" style="margin-bottom:16px">' +
+      tabBtns +
+      "</div>" +
+      (showPeriod ? periodBar() : "") +
+      body
+    );
+  }
+
+  function periodBar() {
+    const y = parseInt(bokFrom.slice(0, 4), 10) || parseInt(S().todayISO().slice(0, 4), 10);
+    return (
+      '<div class="card" style="padding:14px 18px"><div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">' +
+      '<div class="field" style="max-width:170px"><label>Från</label><input type="date" id="bokFrom" value="' +
+      bokFrom +
+      '"></div>' +
+      '<div class="field" style="max-width:170px"><label>Till</label><input type="date" id="bokTo" value="' +
+      bokTo +
+      '"></div>' +
+      '<div class="btn-row">' +
+      '<button class="btn btn-ghost btn-sm" data-action="bok-period" data-id="year">Hela ' +
+      y +
+      "</button>" +
+      '<button class="btn btn-ghost btn-sm" data-action="bok-period" data-id="q1">Q1</button>' +
+      '<button class="btn btn-ghost btn-sm" data-action="bok-period" data-id="q2">Q2</button>' +
+      '<button class="btn btn-ghost btn-sm" data-action="bok-period" data-id="q3">Q3</button>' +
+      '<button class="btn btn-ghost btn-sm" data-action="bok-period" data-id="q4">Q4</button>' +
+      "</div></div></div>"
+    );
+  }
+
+  function bokVerifikationer(cid) {
+    const vers = Faktura.Bok.verifications(cid, bokFrom, bokTo);
+    if (!vers.length)
+      return '<div class="card"><p class="muted">Inga bokförda händelser i perioden. Skicka en faktura eller lägg till en utgift.</p></div>';
+    const rows = vers
+      .map((v) => {
+        const lines = v.lines
+          .map(
+            (l) =>
+              '<div style="display:grid;grid-template-columns:64px 1fr 110px 110px;gap:8px;font-size:.86rem;padding:2px 0">' +
+              '<span class="muted">' +
+              l.account +
+              "</span><span>" +
+              esc(Faktura.Bok.accountName(l.account)) +
+              '</span><span class="num">' +
+              (l.debit ? C().num(l.debit) : "") +
+              '</span><span class="num">' +
+              (l.credit ? C().num(l.credit) : "") +
+              "</span></div>"
+          )
+          .join("");
+        return (
+          '<tr><td style="vertical-align:top"><strong>V' +
+          v.no +
+          '</strong><br><span class="muted small">' +
+          esc(v.date) +
+          "</span></td>" +
+          "<td><strong>" +
+          esc(v.text) +
+          "</strong>" +
+          '<div style="margin-top:6px;border-top:1px solid var(--line-soft);padding-top:4px">' +
+          '<div style="display:grid;grid-template-columns:64px 1fr 110px 110px;gap:8px;font-size:.68rem;text-transform:uppercase;color:var(--ink-400);font-weight:700"><span>Konto</span><span></span><span class="num">Debet</span><span class="num">Kredit</span></div>' +
+          lines +
+          "</div></td></tr>"
+        );
+      })
+      .join("");
+    return (
+      '<div class="card"><table class="data"><thead><tr><th style="width:90px">Ver</th><th>Bokföring</th></tr></thead><tbody>' +
+      rows +
+      "</tbody></table></div>"
+    );
+  }
+
+  function bokHuvudbok(cid) {
+    const accounts = Faktura.Bok.ledger(cid, bokFrom, bokTo);
+    if (!accounts.length)
+      return '<div class="card"><p class="muted">Inga poster i perioden.</p></div>';
+    const rows = accounts
+      .map(
+        (a) =>
+          "<tr><td><strong>" +
+          a.account +
+          "</strong></td><td>" +
+          esc(a.name) +
+          '</td><td class="num">' +
+          C().num(a.debit) +
+          '</td><td class="num">' +
+          C().num(a.credit) +
+          '</td><td class="num"><strong>' +
+          C().num(a.balance) +
+          "</strong></td></tr>"
+      )
+      .join("");
+    return (
+      '<div class="card"><table class="data"><thead><tr><th>Konto</th><th>Namn</th><th class="num">Debet</th><th class="num">Kredit</th><th class="num">Saldo</th></tr></thead><tbody>' +
+      rows +
+      "</tbody></table></div>"
+    );
+  }
+
+  function bokUtgifter(cid) {
+    const expenses = S().listExpenses(cid);
+    const rows = expenses
+      .map((e) => {
+        const vat = C().round2(C().toNum(e.net) * C().toNum(e.vatRate));
+        return (
+          "<tr><td>" +
+          esc(e.date) +
+          "</td><td><strong>" +
+          esc(e.supplier || "—") +
+          "</strong><br><span class=\"muted small\">" +
+          esc(e.description || "") +
+          "</span></td><td>" +
+          e.account +
+          " " +
+          esc(Faktura.Bok.accountName(e.account)) +
+          '</td><td class="num">' +
+          C().num(C().toNum(e.net)) +
+          '</td><td class="num">' +
+          C().num(vat) +
+          "</td><td>" +
+          (e.paid ? '<span class="badge paid">Betald</span>' : '<span class="badge draft">Obetald</span>') +
+          '</td><td class="row-actions">' +
+          iconBtn("edit-expense", e.id, "Redigera", "✏️") +
+          iconBtn("del-expense", e.id, "Radera", "🗑") +
+          "</td></tr>"
+        );
+      })
+      .join("");
+    return (
+      '<div class="page-head" style="margin-bottom:12px"><div></div><div class="btn-row"><button class="btn btn-primary" data-action="new-expense">+ Ny utgift</button></div></div>' +
+      '<div class="card">' +
+      (expenses.length
+        ? '<table class="data"><thead><tr><th>Datum</th><th>Leverantör</th><th>Konto</th><th class="num">Exkl moms</th><th class="num">Moms</th><th>Status</th><th></th></tr></thead><tbody>' +
+          rows +
+          "</tbody></table>"
+        : '<p class="muted">Inga utgifter ännu. Lägg till leverantörsfakturor och kostnader här så kommer ingående moms och resultatet med i rapporterna.</p>') +
+      "</div>"
+    );
+  }
+
+  function bokMoms(cid) {
+    const r = Faktura.Bok.vatReport(cid, bokFrom, bokTo);
+    const inc = Faktura.Bok.income(cid, bokFrom, bokTo);
+    const box = (n, label, val, strong) =>
+      "<tr" +
+      (strong ? ' style="font-weight:700"' : "") +
+      '><td class="muted" style="width:54px">' +
+      (n ? n : "") +
+      "</td><td>" +
+      esc(label) +
+      '</td><td class="num">' +
+      C().num(val) +
+      " kr</td></tr>";
+    const payLabel = r.box49 >= 0 ? "Moms att betala" : "Moms att få tillbaka";
+    return (
+      '<div class="card"><h2>Momsrapport ' +
+      esc(bokFrom) +
+      " – " +
+      esc(bokTo) +
+      "</h2>" +
+      '<p class="muted small">Belopp mappade mot Skatteverkets momsdeklaration. Kontrollera alltid mot din bokföring innan inlämning.</p>' +
+      '<table class="data"><tbody>' +
+      box("05", "Momspliktig försäljning (beskattningsunderlag)", r.box05) +
+      (r.base12 ? box("", "  varav underlag 12 %", r.base12) : "") +
+      (r.base6 ? box("", "  varav underlag 6 %", r.base6) : "") +
+      box("41", "Försäljning omvänd skattskyldighet", r.box41) +
+      box("42", "Övrig momsfri försäljning", r.box42) +
+      box("10", "Utgående moms 25 %", r.box10) +
+      box("11", "Utgående moms 12 %", r.box11) +
+      box("12", "Utgående moms 6 %", r.box12) +
+      box("", "Summa utgående moms", r.outVatTotal, true) +
+      box("48", "Ingående moms att dra av", r.box48) +
+      box("49", payLabel, Math.abs(r.box49), true) +
+      "</tbody></table></div>" +
+      '<div class="stats">' +
+      stat("Intäkter (exkl moms)", C().money(inc.revenue, S().getActiveCompany() && S().getActiveCompany().currency)) +
+      stat("Kostnader (exkl moms)", C().money(inc.costs)) +
+      stat("Resultat", C().money(inc.result), inc.result < 0) +
+      "</div>"
+    );
+  }
+
+  function bokExport(cid) {
+    const co = S().getActiveCompany();
+    return (
+      '<div class="card"><h2>Exportera bokföring</h2>' +
+      '<p class="muted small">Period: <strong>' +
+      esc(bokFrom) +
+      " – " +
+      esc(bokTo) +
+      "</strong></p>" +
+      '<div class="info"><strong>SIE4</strong> är det svenska standardformatet för bokföring. Filen kan importeras av din redovisningskonsult och av program som Fortnox, Visma, Bokio m.fl. — perfekt för att lämna över allt underlag.</div>' +
+      '<div class="btn-row">' +
+      '<button class="btn btn-primary" data-action="export-sie">⬇ Exportera SIE4-fil</button>' +
+      '<button class="btn btn-ghost" data-action="export-csv">⬇ Exportera verifikationer (CSV)</button>' +
+      "</div>" +
+      '<p class="muted small" style="margin-top:14px">Tips: ' +
+      (co ? "" : "välj ett bolag och ") +
+      "se till att fakturor är markerade som <em>skickade</em> (de bokförs först då) och att betalningar/utgifter är registrerade.</p>" +
+      "</div>"
+    );
+  }
+
+  /* Utgiftsformulär (modal) */
+  function expenseForm(e) {
+    const cats = Faktura.Bok.EXPENSE_ACCOUNTS.map(
+      (a) =>
+        '<option value="' +
+        a +
+        '"' +
+        (e.account === a ? " selected" : "") +
+        ">" +
+        a +
+        " " +
+        esc(Faktura.Bok.accountName(a)) +
+        "</option>"
+    ).join("");
+    const vatOpt = [
+      [0.25, "25 %"],
+      [0.12, "12 %"],
+      [0.06, "6 %"],
+      [0, "0 %"],
+    ]
+      .map(
+        (r) =>
+          '<option value="' +
+          r[0] +
+          '"' +
+          (Math.abs(r[0] - e.vatRate) < 1e-6 ? " selected" : "") +
+          ">" +
+          r[1] +
+          "</option>"
+      )
+      .join("");
+    return (
+      "<h2>" +
+      (e.supplier ? "Redigera utgift" : "Ny utgift") +
+      "</h2>" +
+      '<div class="form-grid">' +
+      '<div class="field"><label>Datum</label><input type="date" data-xf="date" value="' +
+      esc(e.date) +
+      '"></div>' +
+      '<div class="field"><label>Leverantör</label><input type="text" data-xf="supplier" value="' +
+      esc(e.supplier) +
+      '"></div>' +
+      '<div class="field full"><label>Beskrivning</label><input type="text" data-xf="description" value="' +
+      esc(e.description) +
+      '"></div>' +
+      '<div class="field"><label>Belopp exkl moms</label><input type="text" inputmode="decimal" data-xf="net" value="' +
+      esc(e.net) +
+      '"></div>' +
+      '<div class="field"><label>Moms</label><select data-xf="vatRate">' +
+      vatOpt +
+      "</select></div>" +
+      '<div class="field full"><label>Kostnadskonto (BAS)</label><select data-xf="account">' +
+      cats +
+      "</select></div>" +
+      '<div class="field check"><input type="checkbox" data-xf-check="paid" id="xf_paid"' +
+      (e.paid ? " checked" : "") +
+      '><label for="xf_paid">Betald</label></div>' +
+      '<div class="field"><label>Betaldatum</label><input type="date" data-xf="paymentDate" value="' +
+      esc(e.paymentDate) +
+      '"></div>' +
+      "</div>" +
+      '<div class="modal-foot"><button class="btn btn-ghost" data-action="close-modal">Avbryt</button>' +
+      '<button class="btn btn-primary" data-action="save-expense" data-id="' +
+      e.id +
+      '">Spara utgift</button></div>'
+    );
+  }
+
+  function saveExpense(id) {
+    const existing = S().getExpense(id);
+    const e = existing || S().newExpense();
+    e.id = id;
+    modalEl.querySelectorAll("[data-xf]").forEach((inp) => {
+      const key = inp.getAttribute("data-xf");
+      let v = inp.value;
+      if (key === "net") v = C().toNum(v);
+      if (key === "vatRate") v = parseFloat(v);
+      e[key] = v;
+    });
+    const paid = modalEl.querySelector('[data-xf-check="paid"]');
+    if (paid) e.paid = paid.checked;
+    if (!e.companyId) {
+      const co = S().getActiveCompany();
+      e.companyId = co ? co.id : null;
+    }
+    if (!e.supplier && !e.description) return toast("Ange leverantör eller beskrivning.", "warn");
+    S().upsertExpense(e);
+    closeModal();
+    toast("Utgift sparad.");
+    render();
   }
 
   /* ════════════════════════════════════════════════════════════════════
@@ -1093,6 +1443,7 @@
     "mark-paid": (id) => {
       const inv = S().getInvoice(id);
       inv.status = "paid";
+      if (!inv.paidDate) inv.paidDate = S().todayISO();
       S().upsertInvoice(inv);
       toast("Markerad som betald.");
       render();
@@ -1146,6 +1497,49 @@
       pendingLogo = "";
     },
     "seed-demo": () => seedDemo(),
+    // — bokföring —
+    "bok-tab": (id) => {
+      bokTab = id;
+      render();
+    },
+    "bok-period": (id) => {
+      const y = parseInt(bokFrom.slice(0, 4), 10) || parseInt(S().todayISO().slice(0, 4), 10);
+      const q = { q1: ["01-01", "03-31"], q2: ["04-01", "06-30"], q3: ["07-01", "09-30"], q4: ["10-01", "12-31"] };
+      if (id === "year") {
+        bokFrom = y + "-01-01";
+        bokTo = y + "-12-31";
+      } else if (q[id]) {
+        bokFrom = y + "-" + q[id][0];
+        bokTo = y + "-" + q[id][1];
+      }
+      render();
+    },
+    "new-expense": () => {
+      const co = S().getActiveCompany();
+      if (!co) return toast("Skapa ett bolag först.", "warn");
+      openModal(expenseForm(S().newExpense({ companyId: co.id })));
+    },
+    "edit-expense": (id) => openModal(expenseForm(S().getExpense(id))),
+    "save-expense": (id) => saveExpense(id),
+    "del-expense": (id) => {
+      if (!confirm("Radera utgiften?")) return;
+      S().deleteExpense(id);
+      render();
+    },
+    "export-sie": () => {
+      const co = S().getActiveCompany();
+      if (!co) return toast("Välj ett bolag först.", "warn");
+      const sie = Faktura.Bok.exportSIE(co.id, bokFrom, bokTo);
+      downloadText((co.name || "bokforing").replace(/[^\wåäöÅÄÖ]+/g, "-") + "-" + bokFrom + ".se", sie, "application/octet-stream");
+      toast("SIE4-fil exporterad.");
+    },
+    "export-csv": () => {
+      const co = S().getActiveCompany();
+      if (!co) return toast("Välj ett bolag först.", "warn");
+      const csv = "﻿" + Faktura.Bok.exportCSV(co.id, bokFrom, bokTo);
+      downloadText("verifikationer-" + bokFrom + ".csv", csv, "text/csv");
+      toast("CSV exporterad.");
+    },
     // — inställningar —
     "save-settings": () => saveSettings(),
     "drive-connect": () => driveConnect(),
@@ -1405,6 +1799,16 @@
   }
 
   /* ── Export / import / demo ────────────────────────────────────────────── */
+  function downloadText(filename, text, mime) {
+    const blob = new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function exportJSON() {
     const blob = new Blob([S().exportJSON()], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1473,6 +1877,16 @@
     const t = e.target;
     if (t.id === "companySwitch") {
       S().setActiveCompany(t.value);
+      render();
+      return;
+    }
+    if (t.id === "bokFrom") {
+      bokFrom = t.value;
+      render();
+      return;
+    }
+    if (t.id === "bokTo") {
+      bokTo = t.value;
       render();
       return;
     }

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lugn Faktura — fakturering för flera bolag</title>
 <meta name="description" content="Enkel, korrekt och proffsig fakturering för svenska företag. Flera bolag, moms, PDF och e-post.">
-<link rel="stylesheet" href="faktura.css?v=1">
+<link rel="stylesheet" href="faktura.css?v=2">
 
 <!-- PDF-generering (CDN) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
@@ -19,6 +19,7 @@
     <a href="#/" data-route="">Översikt</a>
     <a href="#/invoices" data-route="invoices">Fakturor</a>
     <a href="#/customers" data-route="customers">Kunder</a>
+    <a href="#/bokforing" data-route="bokforing">Bokföring</a>
     <a href="#/companies" data-route="companies">Bolag</a>
     <a href="#/settings" data-route="settings">Inställningar</a>
   </nav>
@@ -31,12 +32,13 @@
 
 <div class="toast-wrap" id="toasts"></div>
 
-<!-- Moduler (ordning: store → compute → pdf → email → drive → app) -->
-<script src="store.js?v=1"></script>
-<script src="compute.js?v=1"></script>
-<script src="pdf.js?v=1"></script>
-<script src="email.js?v=1"></script>
-<script src="drive.js?v=1"></script>
-<script src="app.js?v=1"></script>
+<!-- Moduler (ordning: store → compute → bokforing → pdf → email → drive → app) -->
+<script src="store.js?v=2"></script>
+<script src="compute.js?v=2"></script>
+<script src="bokforing.js?v=2"></script>
+<script src="pdf.js?v=2"></script>
+<script src="email.js?v=2"></script>
+<script src="drive.js?v=2"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>
