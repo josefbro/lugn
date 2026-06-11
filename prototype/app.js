@@ -2418,7 +2418,9 @@ function renderBacktest() {
   if (!el) return;
   const inputs = getInputs();
   const lifestyle = activeTier ? TIER_LIFESTYLE[activeTier] : { sideIncomeRatio: 0, untilAge: 0 };
-  const allocWorld = (+document.getElementById("allocSlider")?.value || 100) / 100;
+  // Slider 0 = vänsterkant (International) → 100% World. 100 = högerkant (Sverige) → 100% SIXRX.
+  const sv = +document.getElementById("allocSlider")?.value || 0;
+  const allocWorld = 1 - sv / 100;
   // applicera livsstil
   const inp = { ...inputs };
   const bt = runBacktest(inp, allocWorld);
@@ -2434,7 +2436,7 @@ function renderBacktest() {
   const optim = document.getElementById("allocOptim");
   if (optim && ms) {
     const setAlloc = w => { const as = document.getElementById("allocSlider");
-      as.value = Math.round(w*100); as._userMoved = true; renderBacktest(); };
+      as.value = Math.round((1 - w) * 100); as._userMoved = true; renderBacktest(); };
     const mvW = Math.round(ms.minVarAlloc*100), msW = Math.round(ms.maxSharpeAlloc*100);
     optim.innerHTML =
       `<button class="optim-chip" id="optMinVar">Lägst risk: ${mvW}/${100-mvW}</button>` +
@@ -2732,7 +2734,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // hemmamarknads-bias) snarare än min-variansens hörnlösning.
   const as = document.getElementById("allocSlider");
   const ms = marketStats();
-  if (as && ms && !as._userMoved) as.value = Math.round(ms.maxSharpeAlloc * 100);
+  if (as && ms && !as._userMoved) as.value = Math.round((1 - ms.maxSharpeAlloc) * 100);
   setupLifestyleChips();
   setupShockChips();
   applyOnboardingAnswers();
