@@ -26,9 +26,6 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
-        with:
-          # Aktivera Pages automatiskt om det är avstängt (self-healing deploy)
-          enablement: true
 
       - name: Upload prototype folder as Pages artifact
         uses: actions/upload-pages-artifact@v3
