@@ -226,6 +226,14 @@ table.lines .num input { text-align: right; }
 .toast.warn { background: var(--warn); }
 @keyframes toastin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
+/* ── Validerings-badge (KYC) ────────────────────────────────────────── */
+.vb { font-size: .72rem; font-weight: 600; margin-left: 4px; }
+.vb.ok { color: var(--ok); }
+.vb.bad { color: var(--err); }
+.badge.kyc-complete { background: #e3f0e3; color: var(--ok); }
+.badge.kyc-partial { background: #fdf1e0; color: var(--warn); }
+.badge.kyc-none { background: var(--cream-200); color: var(--ink-400); }
+
 /* ── Info-box ───────────────────────────────────────────────────────── */
 .info { background: #eef3ee; border: 1px solid #d4e3d4; border-radius: var(--radius-sm); padding: 13px 15px; font-size: .88rem; color: var(--sage-900); margin: 12px 0; }
 .info code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: .85em; }

@@ -1096,6 +1096,8 @@
           esc(c.email || "") +
           "</td><td>" +
           esc(c.type === "private" ? "Privatperson" : "Företag") +
+          "</td><td>" +
+          kycBadge(c) +
           '</td><td class="row-actions">' +
           iconBtn("edit-customer", c.id, "Redigera", "✏️") +
           iconBtn("del-customer", c.id, "Radera", "🗑") +
@@ -1111,7 +1113,7 @@
       '<div class="btn-row"><button class="btn btn-primary" data-action="new-customer">+ Ny kund</button></div></div>' +
       '<div class="card">' +
       (customers.length
-        ? '<table class="data"><thead><tr><th>Namn</th><th>Org/Pers.nr</th><th>E-post</th><th>Typ</th><th></th></tr></thead><tbody>' +
+        ? '<table class="data"><thead><tr><th>Namn</th><th>Org/Pers.nr</th><th>E-post</th><th>Typ</th><th>Kontroll</th><th></th></tr></thead><tbody>' +
           rows +
           "</tbody></table>"
         : '<p class="muted">Inga kunder ännu.</p>') +
@@ -1120,10 +1122,16 @@
   }
 
   function customerForm(c) {
+    const k = c.kyc || {};
+    const orgRes = C().validateIdNumber(c.orgnr, c.type);
+    const vatRes = C().validateVat(c.vatNumber, c.countryCode);
+    const risk = (v, t) =>
+      '<option value="' + v + '"' + (k.riskLevel === v ? " selected" : "") + ">" + t + "</option>";
     return (
       "<h2>" +
       (c.name ? "Redigera kund" : "Ny kund") +
       "</h2>" +
+      '<h3 style="margin-top:6px">Kunduppgifter</h3>' +
       '<div class="form-grid">' +
       cf("Namn", "name", c.name, "text", true) +
       '<div class="field"><label>Typ</label><select data-cf="type">' +
@@ -1133,8 +1141,8 @@
       '<option value="private"' +
       (c.type === "private" ? " selected" : "") +
       ">Privatperson</option></select></div>" +
-      cf("Org./personnr", "orgnr", c.orgnr, "text") +
-      cf("Momsnr (EU-handel)", "vatNumber", c.vatNumber, "text") +
+      cfVal("Org./personnr", "orgnr", c.orgnr, "cfOrgStatus", orgRes) +
+      cfVal("Momsnr (EU-handel)", "vatNumber", c.vatNumber, "cfVatStatus", vatRes) +
       cf("E-post", "email", c.email, "email") +
       cf("Referens (attesterar)", "reference", c.reference, "text") +
       cf("Adress", "address.line1", c.address.line1, "text", true) +
@@ -1143,11 +1151,125 @@
       cf("Land", "address.country", c.address.country, "text") +
       cf("Landskod", "address_cc", c.countryCode, "text") +
       "</div>" +
+      // ── Kontroll & kundkännedom ──
+      '<h3>Kontroll &amp; kundkännedom (KYC)</h3>' +
+      '<div class="info">Grundkontroll är klok praxis för alla. <strong>Formell kundkännedom (AML)</strong> krävs bara om ditt bolag är verksamhetsutövare enligt penningtvättslagen. Kontrollera mot register:' +
+      ' <a href="https://www.allabolag.se/" target="_blank" rel="noopener">Allabolag</a> ·' +
+      ' <a href="https://ec.europa.eu/taxation_customs/vies/" target="_blank" rel="noopener">VIES (EU-moms)</a> ·' +
+      ' <a href="https://www.skatteverket.se/" target="_blank" rel="noopener">Skatteverket (F-skatt)</a> ·' +
+      ' <a href="https://www.sanctionsmap.eu/" target="_blank" rel="noopener">EU sanktionslista</a></div>' +
+      '<div class="form-grid">' +
+      cfkCheck("Org.nr kontrollerat mot register", "orgnrVerified", k.orgnrVerified) +
+      cfkCheck("F-skatt verifierad", "fskattChecked", k.fskattChecked) +
+      cfk("Datum F-skattkontroll", "fskattDate", k.fskattDate, "date") +
+      cfkCheck("Momsnr kontrollerat (VIES vid EU)", "vatChecked", k.vatChecked) +
+      cfk("Datum momskontroll", "vatDate", k.vatDate, "date") +
+      cfkCheck("Kreditkontroll gjord", "creditChecked", k.creditChecked) +
+      cfk("Datum kreditkontroll", "creditDate", k.creditDate, "date") +
+      cfk("Beviljad kreditgräns (kr)", "creditLimit", k.creditLimit, "text") +
+      "</div>" +
+      // ── AML / penningtvätt ──
+      '<h3>Kundkännedom / AML (vid lagkrav)</h3>' +
+      '<div class="form-grid">' +
+      '<div class="field"><label>Riskklass</label><select data-kyc="riskLevel">' +
+      risk("low", "Låg risk") +
+      risk("medium", "Medel") +
+      risk("high", "Hög risk") +
+      "</select></div>" +
+      cfk("Affärsrelationens syfte", "purpose", k.purpose, "text") +
+      cfk("Verklig huvudman", "beneficialOwner", k.beneficialOwner, "text", true) +
+      cfk("ID-kontroll metod (BankID, pass …)", "idMethod", k.idMethod, "text") +
+      cfk("Datum ID-kontroll", "idDate", k.idDate, "date") +
+      cfkCheck("Person i politiskt utsatt ställning (PEP)", "pep", k.pep) +
+      cfkCheck("Sanktionslistkontroll gjord", "sanctionsChecked", k.sanctionsChecked) +
+      cfk("Datum sanktionskontroll", "sanctionsDate", k.sanctionsDate, "date") +
+      cfkCheck("Kundkännedom slutförd", "completed", k.completed) +
+      cfk("Datum slutförd", "completedDate", k.completedDate, "date") +
+      "</div>" +
       '<div class="modal-foot"><button class="btn btn-ghost" data-action="close-modal">Avbryt</button>' +
       '<button class="btn btn-primary" data-action="save-customer" data-id="' +
       c.id +
       '">Spara</button></div>'
     );
+  }
+
+  function kycBadge(c) {
+    const s = C().kycStatus(c);
+    const warn = s.idValid === false ? ' <span class="vb bad" title="Org/personnr ogiltigt">✗ nr</span>' : "";
+    if (s.state === "complete") return '<span class="badge kyc-complete">KYC klar</span>' + warn;
+    if (s.state === "partial")
+      return '<span class="badge kyc-partial">Påbörjad ' + s.done + "/" + s.total + "</span>" + warn;
+    return '<span class="badge kyc-none">Ej gjord</span>' + warn;
+  }
+
+  function valBadge(res) {
+    if (!res || res.valid === null) return "";
+    return (
+      '<span class="vb ' +
+      (res.valid ? "ok" : "bad") +
+      '">' +
+      (res.valid ? "✓ " : "✗ ") +
+      esc(res.msg) +
+      "</span>"
+    );
+  }
+  function cfVal(label, key, val, statusId, res) {
+    return (
+      '<div class="field"><label>' +
+      esc(label) +
+      ' <span class="vb-wrap" id="' +
+      statusId +
+      '">' +
+      valBadge(res) +
+      '</span></label><input type="text" data-cf="' +
+      key +
+      '" value="' +
+      esc(val == null ? "" : val) +
+      '"></div>'
+    );
+  }
+  function cfk(label, key, val, type, full) {
+    return (
+      '<div class="field' +
+      (full ? " full" : "") +
+      '"><label>' +
+      esc(label) +
+      '</label><input type="' +
+      (type || "text") +
+      '" data-kyc="' +
+      key +
+      '" value="' +
+      esc(val == null ? "" : val) +
+      '"></div>'
+    );
+  }
+  function cfkCheck(label, key, checked) {
+    return (
+      '<div class="field check"><input type="checkbox" data-kyc="' +
+      key +
+      '" id="kyc_' +
+      key +
+      '"' +
+      (checked ? " checked" : "") +
+      '><label for="kyc_' +
+      key +
+      '">' +
+      esc(label) +
+      "</label></div>"
+    );
+  }
+  function updateKycBadges() {
+    if (!modalEl) return;
+    const get = (k) => {
+      const e = modalEl.querySelector('[data-cf="' + k + '"]');
+      return e ? e.value : "";
+    };
+    const type = get("type") || "company";
+    const cc = get("address_cc") || "SE";
+    const o = modalEl.querySelector("#cfOrgStatus");
+    const v = modalEl.querySelector("#cfVatStatus");
+    if (o) o.innerHTML = valBadge(C().validateIdNumber(get("orgnr"), type));
+    if (v) v.innerHTML = valBadge(C().validateVat(get("vatNumber"), cc));
   }
   function cf(label, key, val, type, full) {
     return (
@@ -1617,6 +1739,12 @@
       S().save();
       return;
     }
+    // Live-validering av org.nr / momsnr i kundformuläret
+    if (t.hasAttribute("data-cf")) {
+      const key = t.getAttribute("data-cf");
+      if (key === "orgnr" || key === "type" || key === "vatNumber" || key === "address_cc")
+        updateKycBadges();
+    }
   }
 
   /* ── Spara kund ────────────────────────────────────────────────────────── */
@@ -1629,6 +1757,15 @@
       if (key === "address_cc") c.countryCode = (inp.value || "SE").toUpperCase();
       else setPath(c, key, inp.value);
     });
+    // KYC / kundkännedom
+    if (!c.kyc) c.kyc = S().newCustomer().kyc;
+    modalEl.querySelectorAll("[data-kyc]").forEach((inp) => {
+      const key = inp.getAttribute("data-kyc");
+      let v = inp.type === "checkbox" ? inp.checked : inp.value;
+      if (key === "creditLimit") v = C().toNum(v);
+      c.kyc[key] = v;
+    });
+    if (c.kyc.completed && !c.kyc.completedDate) c.kyc.completedDate = S().todayISO();
     if (!c.name) return toast("Kunden behöver ett namn.", "warn");
     if (!c.companyId) {
       const co = S().getActiveCompany();

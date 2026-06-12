@@ -80,9 +80,35 @@
         email: "",
         reference: "", // deras referens (attesterar)
         notes: "",
+        kyc: newKyc(),
       },
       over || {}
     );
+  }
+
+  function newKyc() {
+    return {
+      // Vanlig kundkontroll
+      orgnrVerified: false, // org.nr kontrollerat mot register
+      fskattChecked: false, // F-skatt verifierad
+      fskattDate: "",
+      vatChecked: false, // momsnr kontrollerat (VIES vid EU)
+      vatDate: "",
+      creditChecked: false, // kreditkontroll gjord
+      creditDate: "",
+      creditLimit: 0, // beviljad kreditgräns
+      // Kundkännedom / AML (penningtvättslagen — för verksamhetsutövare)
+      beneficialOwner: "", // verklig huvudman
+      pep: false, // person i politiskt utsatt ställning
+      sanctionsChecked: false, // sanktionslistkontroll
+      sanctionsDate: "",
+      idMethod: "", // metod för ID-kontroll (BankID, pass ...)
+      idDate: "",
+      riskLevel: "low", // low | medium | high
+      purpose: "", // affärsrelationens syfte
+      completed: false, // kundkännedom slutförd
+      completedDate: "",
+    };
   }
 
   function newLine(over) {
@@ -192,6 +218,10 @@
     merged.settings = Object.assign(base.settings, s.settings || {});
     merged.settings.emailjs = Object.assign(base.settings.emailjs, (s.settings || {}).emailjs || {});
     merged.settings.drive = Object.assign(base.settings.drive, (s.settings || {}).drive || {});
+    // Bakåtfyll KYC på äldre kunder
+    (merged.customers || []).forEach((c) => {
+      c.kyc = Object.assign(newKyc(), c.kyc || {});
+    });
     return merged;
   }
 

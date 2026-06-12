@@ -218,8 +218,96 @@
     return out;
   }
 
+  /* ── Identitets- & KYC-validering ─────────────────────────────────────── */
+  function digitsOnly(s) {
+    return String(s || "").replace(/\D/g, "");
+  }
+
+  // Luhn (mod 10) — används för svenska org.nr och personnr.
+  function luhn(str) {
+    const d = digitsOnly(str);
+    if (!d) return false;
+    let sum = 0,
+      alt = false;
+    for (let i = d.length - 1; i >= 0; i--) {
+      let n = parseInt(d[i], 10);
+      if (alt) {
+        n *= 2;
+        if (n > 9) n -= 9;
+      }
+      sum += n;
+      alt = !alt;
+    }
+    return sum % 10 === 0;
+  }
+
+  // Returnerar { valid, msg } för svenskt organisationsnummer.
+  function validateOrgnr(s) {
+    let d = digitsOnly(s);
+    if (!d) return { valid: null, msg: "" };
+    if (d.length === 12) d = d.slice(2); // ta bort sekel/16
+    if (d.length !== 10) return { valid: false, msg: "Org.nr ska ha 10 siffror." };
+    if (!luhn(d)) return { valid: false, msg: "Kontrollsiffran stämmer inte." };
+    return { valid: true, msg: "Giltigt format & kontrollsiffra." };
+  }
+
+  function validatePersonnr(s) {
+    let d = digitsOnly(s);
+    if (!d) return { valid: null, msg: "" };
+    if (d.length === 12) d = d.slice(2);
+    if (d.length !== 10) return { valid: false, msg: "Personnr ska ha 10 siffror (ÅÅMMDD-XXXX)." };
+    if (!luhn(d)) return { valid: false, msg: "Kontrollsiffran stämmer inte." };
+    return { valid: true, msg: "Giltigt format & kontrollsiffra." };
+  }
+
+  function validateIdNumber(s, type) {
+    return type === "private" ? validatePersonnr(s) : validateOrgnr(s);
+  }
+
+  // Momsregistreringsnummer. Strikt för SE, lättare för övriga EU.
+  function validateVat(s, countryCode) {
+    const raw = String(s || "").toUpperCase().replace(/\s/g, "");
+    if (!raw) return { valid: null, msg: "" };
+    const cc = (raw.slice(0, 2).match(/[A-Z]{2}/) ? raw.slice(0, 2) : countryCode || "SE").toUpperCase();
+    if (cc === "SE") {
+      const m = raw.replace(/^SE/, "");
+      if (!/^\d{12}$/.test(m)) return { valid: false, msg: "Svenskt momsnr: SE + 12 siffror (slutar 01)." };
+      if (m.slice(10) !== "01") return { valid: false, msg: "Svenskt momsnr ska sluta på 01." };
+      if (!luhn(m.slice(0, 10))) return { valid: false, msg: "Kontrollsiffran i org.nr-delen stämmer inte." };
+      return { valid: true, msg: "Giltigt svenskt momsnr-format." };
+    }
+    // Övriga EU: grundläggande formatkontroll (validera mot VIES manuellt).
+    if (!/^[A-Z]{2}[0-9A-Z]{2,12}$/.test(raw))
+      return { valid: false, msg: "EU-momsnr: landskod + 2–12 tecken." };
+    return { valid: true, msg: "Formatet ser rimligt ut — verifiera i VIES." };
+  }
+
+  // Sammanfattande KYC-status för en kund.
+  function kycStatus(customer) {
+    const k = (customer && customer.kyc) || {};
+    const id = validateIdNumber(customer ? customer.orgnr : "", customer ? customer.type : "company");
+    const vat = validateVat(customer ? customer.vatNumber : "", customer ? customer.countryCode : "SE");
+    const checks = [
+      k.orgnrVerified,
+      k.fskattChecked,
+      customer && customer.countryCode !== "SE" ? k.vatChecked : true,
+      k.creditChecked,
+    ];
+    const done = checks.filter(Boolean).length;
+    let state = "none";
+    if (k.completed) state = "complete";
+    else if (done > 0 || k.sanctionsChecked) state = "partial";
+    return { state: state, done: done, total: checks.length, idValid: id.valid, vatValid: vat.valid };
+  }
+
   /* ── Publikt API ──────────────────────────────────────────────────────── */
   Faktura.Compute = {
+    luhn,
+    validateOrgnr,
+    validatePersonnr,
+    validateIdNumber,
+    validateVat,
+    kycStatus,
     round2,
     roundToWhole,
     toNum,
