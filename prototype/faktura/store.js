@@ -30,6 +30,8 @@
       payrolls: [],
       assets: [],
       bokslut: [],
+      bankTx: [],
+      auditLog: [],
       settings: {
         emailjs: { publicKey: "", serviceId: "", templateId: "" },
         drive: { clientId: "", fileId: "", connectedEmail: "", autoSync: false },
@@ -384,12 +386,18 @@
   }
   function upsertInvoice(inv) {
     const idx = state.invoices.findIndex((i) => i.id === inv.id);
+    const old = idx >= 0 ? state.invoices[idx] : null;
+    if (!old) audit("Faktura skapad", inv.id);
+    else if (old.status !== inv.status)
+      audit("Faktura statusändrad", (inv.number || inv.id) + ": " + old.status + " → " + inv.status);
     if (idx >= 0) state.invoices[idx] = inv;
     else state.invoices.push(inv);
     save();
     return inv;
   }
   function deleteInvoice(id) {
+    const inv = state.invoices.find((i) => i.id === id);
+    audit("Faktura raderad", inv ? (inv.number || inv.id) : id);
     state.invoices = state.invoices.filter((i) => i.id !== id);
     save();
   }
@@ -402,6 +410,7 @@
     const n = co.nextInvoiceNo || 1;
     inv.number = (co.invoicePrefix || "") + String(n);
     co.nextInvoiceNo = n + 1;
+    audit("Fakturanummer tilldelat", inv.number);
     upsertCompany(co);
     upsertInvoice(inv);
     return inv;
@@ -419,18 +428,69 @@
   }
   function upsertExpense(exp) {
     const idx = state.expenses.findIndex((e) => e.id === exp.id);
+    audit(idx >= 0 ? "Utgift ändrad" : "Utgift skapad", describeItem(exp));
     if (idx >= 0) state.expenses[idx] = exp;
     else state.expenses.push(exp);
     save();
     return exp;
   }
   function deleteExpense(id) {
+    const exp = state.expenses.find((e) => e.id === id);
+    audit("Utgift raderad", describeItem(exp) || id);
     state.expenses = state.expenses.filter((e) => e.id !== id);
     save();
   }
 
+  /* ── Revisionslogg (audit trail) ──────────────────────────────────────── */
+  /* Append-only logg med hash-kedja: varje post bär föregående posts hash.
+     Ändras eller raderas en post i efterhand bryts kedjan och
+     verifyAuditChain() returnerar false — spårbarhet enligt
+     bokföringslagens krav på behandlingshistorik. */
+  function djb2(str) {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+    return ("00000000" + h.toString(16)).slice(-8);
+  }
+
+  function audit(action, details) {
+    const prev = state.auditLog.length ? state.auditLog[state.auditLog.length - 1].h : "0";
+    const entry = {
+      ts: new Date().toISOString(),
+      action: action,
+      details: String(details == null ? "" : details),
+      prev: prev,
+    };
+    entry.h = djb2(prev + "|" + entry.ts + "|" + action + "|" + entry.details);
+    state.auditLog.push(entry);
+    return entry;
+  }
+
+  function listAudit() {
+    return state.auditLog.slice().reverse(); // nyast först
+  }
+
+  function verifyAuditChain() {
+    let prev = "0";
+    for (let i = 0; i < state.auditLog.length; i++) {
+      const e = state.auditLog[i];
+      if (e.prev !== prev) return false;
+      if (e.h !== djb2(prev + "|" + e.ts + "|" + e.action + "|" + e.details)) return false;
+      prev = e.h;
+    }
+    return true;
+  }
+
   /* ── Generisk CRUD-fabrik för enkla listor ────────────────────────────── */
+  const CRUD_LABELS = {
+    manualVers: "Manuell verifikation",
+    payrolls: "Lönekörning",
+    assets: "Tillgång",
+    bokslut: "Bokslutsuppgifter",
+    bankTx: "Banktransaktion",
+  };
+
   function makeCrud(key) {
+    const label = CRUD_LABELS[key] || key;
     return {
       list: (companyId) =>
         state[key]
@@ -440,21 +500,48 @@
       get: (id) => state[key].find((x) => x.id === id) || null,
       upsert: (item) => {
         const idx = state[key].findIndex((x) => x.id === item.id);
+        audit(idx >= 0 ? label + " ändrad" : label + " skapad", describeItem(item));
         if (idx >= 0) state[key][idx] = item;
         else state[key].push(item);
         save();
         return item;
       },
       remove: (id) => {
+        const item = state[key].find((x) => x.id === id);
+        audit(label + " raderad", describeItem(item) || id);
         state[key] = state[key].filter((x) => x.id !== id);
         save();
       },
     };
   }
+
+  function describeItem(x) {
+    if (!x) return "";
+    const bits = [];
+    if (x.date) bits.push(x.date);
+    if (x.period) bits.push(x.period);
+    if (x.text) bits.push(x.text);
+    if (x.name) bits.push(x.name);
+    if (x.employee) bits.push(x.employee);
+    if (x.supplier) bits.push(x.supplier);
+    if (x.year) bits.push("år " + x.year);
+    bits.push(x.id);
+    return bits.join(" · ");
+  }
+
   const manualCrud = makeCrud("manualVers");
   const payrollCrud = makeCrud("payrolls");
   const assetCrud = makeCrud("assets");
   const bokslutCrud = makeCrud("bokslut");
+  const bankTxCrud = makeCrud("bankTx");
+
+  /* Bulk-import av banktransaktioner — en loggpost för hela importen. */
+  function bulkAddBankTx(txs, sourceNote) {
+    txs.forEach((t) => state.bankTx.push(t));
+    audit("Bankimport", txs.length + " transaktioner" + (sourceNote ? " (" + sourceNote + ")" : ""));
+    save();
+    return txs.length;
+  }
 
   function getBokslutFor(companyId, year) {
     return (
@@ -475,7 +562,7 @@
         arr.forEach((x) => (m[x.id] = x));
         return m;
       };
-      ["companies", "customers", "invoices", "expenses", "manualVers", "payrolls", "assets", "bokslut"].forEach((k) => {
+      ["companies", "customers", "invoices", "expenses", "manualVers", "payrolls", "assets", "bokslut", "bankTx"].forEach((k) => {
         const cur = byId(state[k]);
         (parsed[k] || []).forEach((x) => (cur[x.id] = x));
         state[k] = Object.values(cur);
@@ -550,6 +637,16 @@
     newBokslut,
     getBokslutFor,
     upsertBokslut: bokslutCrud.upsert,
+    // bank
+    listBankTx: bankTxCrud.list,
+    getBankTx: bankTxCrud.get,
+    upsertBankTx: bankTxCrud.upsert,
+    deleteBankTx: bankTxCrud.remove,
+    bulkAddBankTx,
+    // revisionslogg
+    audit,
+    listAudit,
+    verifyAuditChain,
     // i/o
     exportJSON,
     importJSON,

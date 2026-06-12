@@ -308,6 +308,11 @@
     const d = k2Data(companyId, year);
     const co = d.company || {};
     const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+    // Sanera all text (typografiskt minus & hårda mellanslag → ASCII).
+    const _text = doc.text.bind(doc);
+    doc.text = function (t, x, yy, o) {
+      return _text(C().pdfSafe(t), x, yy, o);
+    };
     const M = 22,
       RIGHT = 188;
     let y = 0;
@@ -408,15 +413,24 @@
       (d.bokslut.verksamhet || "Bolaget bedriver verksamhet enligt bolagsordningen.") +
         (co.sate ? " Bolaget har sitt säte i " + co.sate + "." : "")
     );
-    h2("Flerårsöversikt (tkr där ej annat anges)");
-    colHead("", "");
+    h2("Flerårsöversikt (kr)");
+    // Tabell: år | nettoomsättning | resultat efter finansiella poster | soliditet
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor.apply(doc, INK6);
+    doc.text("Nettoomsättning", 105, y, { align: "right" });
+    doc.text("Res. efter fin. poster", 150, y, { align: "right" });
+    doc.text("Soliditet", RIGHT, y, { align: "right" });
+    nl(5.5);
     d.flerars.forEach((f) => {
-      row(
-        f.year + " — Nettoomsättning " + num(f.oms) + " kr, resultat efter finansiella poster " +
-          num(f.res) + " kr, soliditet " + C().num(f.soliditet, 1) + " %",
-        null,
-        null
-      );
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor.apply(doc, INK);
+      doc.text(f.year, M, y);
+      doc.text(num(f.oms), 105, y, { align: "right" });
+      doc.text(num(f.res), 150, y, { align: "right" });
+      doc.text(C().num(f.soliditet, 1) + " %", RIGHT, y, { align: "right" });
+      nl(5.4);
     });
     h2("Förändringar i eget kapital");
     colHead("Aktiekapital", "Fritt eget kapital");

@@ -37,6 +37,11 @@
     const { jsPDF } = window.jspdf;
     const comp = C().compute(inv);
     const doc = new jsPDF({ unit: "mm", format: "a4" });
+    // Sanera all text (typografiskt minus & hårda mellanslag → ASCII).
+    const _text = doc.text.bind(doc);
+    doc.text = function (t, x, y, o) {
+      return _text(C().pdfSafe(t), x, y, o);
+    };
 
     const PAGE_W = 210;
     const M = 16; // marginal

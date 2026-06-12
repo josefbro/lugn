@@ -323,6 +323,7 @@
     const tabs = [
       ["verifikationer", "Verifikationer"],
       ["huvudbok", "Huvudbok"],
+      ["bank", "Bank"],
       ["utgifter", "Utgifter"],
       ["lon", "Lön"],
       ["tillgangar", "Tillgångar"],
@@ -330,6 +331,7 @@
       ["moms", "Momsrapport"],
       ["arsavslut", "Årsavslut"],
       ["export", "Export"],
+      ["logg", "Logg"],
     ];
     const tabBtns = tabs
       .map(
@@ -347,6 +349,7 @@
     let body = "";
     if (bokTab === "verifikationer") body = bokVerifikationer(cid);
     else if (bokTab === "huvudbok") body = bokHuvudbok(cid);
+    else if (bokTab === "bank") body = bokBank(cid);
     else if (bokTab === "utgifter") body = bokUtgifter(cid);
     else if (bokTab === "lon") body = bokLon(cid);
     else if (bokTab === "tillgangar") body = bokTillgangar(cid);
@@ -354,8 +357,9 @@
     else if (bokTab === "moms") body = bokMoms(cid);
     else if (bokTab === "arsavslut") body = bokArsavslut(cid);
     else if (bokTab === "export") body = bokExport(cid);
+    else if (bokTab === "logg") body = bokLogg(cid);
 
-    const showPeriod = bokTab !== "utgifter" && bokTab !== "tillgangar";
+    const showPeriod = ["utgifter", "tillgangar", "bank", "logg"].indexOf(bokTab) < 0;
 
     return (
       '<div class="page-head"><div><h1>Bokföring</h1><p>Automatisk dubbel bokföring från dina fakturor och utgifter — underlag för Skatteverket.</p></div></div>' +
@@ -568,6 +572,119 @@
       '<p class="muted small" style="margin-top:14px">Tips: ' +
       (co ? "" : "välj ett bolag och ") +
       "se till att fakturor är markerade som <em>skickade</em> (de bokförs först då) och att betalningar/utgifter är registrerade.</p>" +
+      "</div>"
+    );
+  }
+
+  /* ── Bank: import & avstämning ────────────────────────────────────────── */
+  function bokBank(cid) {
+    const txs = S().listBankTx(cid);
+    const open = txs.filter((t) => !t.matched).length;
+
+    const rows = txs
+      .map((tx) => {
+        let actionCell;
+        if (tx.matched) {
+          actionCell =
+            '<span class="badge paid">✓ ' +
+            esc(tx.matched.label || tx.matched.type) +
+            "</span> " +
+            '<button class="btn btn-ghost btn-sm" data-action="bank-unmatch" data-id="' +
+            tx.id +
+            '">Ångra</button>';
+        } else {
+          const sugg = Faktura.Bank.suggestFor(tx)
+            .map(
+              (s) =>
+                '<button class="btn btn-primary btn-sm" data-action="bank-match" data-id="' +
+                tx.id +
+                '" data-tgt="' +
+                s.type +
+                ":" +
+                s.id +
+                '">→ ' +
+                esc(s.label) +
+                "</button>"
+            )
+            .join(" ");
+          const accSel =
+            '<select data-bank-acc="' +
+            tx.id +
+            '" style="width:auto;max-width:230px;display:inline-block;padding:6px 8px;font-size:.84rem">' +
+            accountOptions("") +
+            "</select> " +
+            '<button class="btn btn-ghost btn-sm" data-action="bank-categorize" data-id="' +
+            tx.id +
+            '">Kategorisera</button>';
+          actionCell =
+            (sugg ? sugg + "<br>" : "") +
+            accSel +
+            " " +
+            iconBtn("del-banktx", tx.id, "Radera transaktion", "🗑");
+        }
+        return (
+          "<tr><td>" +
+          esc(tx.date) +
+          "</td><td>" +
+          esc(tx.text || "") +
+          '</td><td class="num" style="font-weight:600;color:' +
+          (tx.amount >= 0 ? "var(--ok)" : "var(--ink-900)") +
+          '">' +
+          C().num(tx.amount) +
+          "</td><td>" +
+          actionCell +
+          "</td></tr>"
+        );
+      })
+      .join("");
+
+    return (
+      '<div class="card"><h2>Importera kontoutdrag</h2>' +
+      '<p class="muted small">Exportera CSV från din internetbank (SEB, Swedbank, Handelsbanken, Nordea m.fl.). Kolumner för datum, belopp och text hittas automatiskt; dubbletter hoppas över. Matcha inbetalningar mot öppna fakturor, utbetalningar mot obetalda utgifter — eller kategorisera direkt mot konto (verifikation mot 1930 skapas). Allt loggas i revisionsloggen.</p>' +
+      '<div class="btn-row"><label class="btn btn-primary" style="cursor:pointer">⬆ Välj CSV-fil<input type="file" id="bankCsvInput" accept=".csv,text/csv,text/plain" style="display:none"></label></div>' +
+      "</div>" +
+      '<div class="card"><h2>Transaktioner' +
+      (txs.length ? " (" + open + " omatchade av " + txs.length + ")" : "") +
+      "</h2>" +
+      (txs.length
+        ? '<table class="data"><thead><tr><th>Datum</th><th>Text</th><th class="num">Belopp</th><th>Avstämning</th></tr></thead><tbody>' +
+          rows +
+          "</tbody></table>"
+        : '<p class="muted">Inga banktransaktioner importerade ännu.</p>') +
+      "</div>"
+    );
+  }
+
+  /* ── Revisionslogg ────────────────────────────────────────────────────── */
+  function bokLogg() {
+    const log = S().listAudit();
+    const chainOk = S().verifyAuditChain();
+    const rows = log
+      .map(
+        (e) =>
+          '<tr><td class="muted small" style="white-space:nowrap">' +
+          esc(e.ts.slice(0, 19).replace("T", " ")) +
+          "</td><td><strong>" +
+          esc(e.action) +
+          "</strong></td><td>" +
+          esc(e.details) +
+          '</td><td class="muted small">' +
+          esc(e.h) +
+          "</td></tr>"
+      )
+      .join("");
+    return (
+      '<div class="card"><h2>Revisionslogg (behandlingshistorik)</h2>' +
+      '<p class="muted small">Append-only logg över alla bokföringshändelser. Varje post bär föregående posts hash — om något ändras i efterhand bryts kedjan. Loggen ingår i JSON-exporten (säkerhetskopian).</p>' +
+      (chainOk
+        ? '<p class="compliance-ok">✓ Hash-kedjan är intakt (' + log.length + " poster).</p>"
+        : '<p style="color:var(--err);font-weight:600">⚠ Hash-kedjan är BRUTEN — loggen kan ha manipulerats.</p>') +
+      '<div class="btn-row" style="margin-bottom:12px"><button class="btn btn-ghost btn-sm" data-action="export-audit">⬇ Exportera logg (CSV)</button></div>' +
+      (log.length
+        ? '<table class="data"><thead><tr><th>Tidpunkt</th><th>Händelse</th><th>Detaljer</th><th>Hash</th></tr></thead><tbody>' +
+          rows +
+          "</tbody></table>"
+        : '<p class="muted">Inga händelser loggade ännu.</p>') +
       "</div>"
     );
   }
@@ -2227,6 +2344,54 @@
       S().deleteManualVer(id);
       render();
     },
+    // — bank —
+    "bank-match": (id, btn) => {
+      const tgt = btn.getAttribute("data-tgt") || "";
+      const sep = tgt.indexOf(":");
+      const type = tgt.slice(0, sep);
+      const targetId = tgt.slice(sep + 1);
+      try {
+        if (type === "invoice") Faktura.Bank.matchInvoice(id, targetId);
+        else if (type === "expense") Faktura.Bank.matchExpense(id, targetId);
+        toast("Transaktion matchad.");
+        render();
+      } catch (err) {
+        toast(err.message, "err");
+      }
+    },
+    "bank-categorize": (id) => {
+      const sel = document.querySelector('[data-bank-acc="' + id + '"]');
+      if (!sel || !sel.value) return toast("Välj ett konto först.", "warn");
+      try {
+        Faktura.Bank.categorize(id, sel.value);
+        toast("Kategoriserad — verifikation skapad.");
+        render();
+      } catch (err) {
+        toast(err.message, "err");
+      }
+    },
+    "bank-unmatch": (id) => {
+      Faktura.Bank.unmatch(id);
+      toast("Matchning ångrad.");
+      render();
+    },
+    "del-banktx": (id) => {
+      if (!confirm("Radera banktransaktionen ur listan?")) return;
+      S().deleteBankTx(id);
+      render();
+    },
+    "export-audit": () => {
+      const rows = [["Tidpunkt", "Händelse", "Detaljer", "Hash", "Föregående hash"]];
+      S()
+        .listAudit()
+        .reverse()
+        .forEach((e) => rows.push([e.ts, e.action, e.details, e.h, e.prev]));
+      const csv =
+        "﻿" +
+        rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(";")).join("\r\n");
+      downloadText("revisionslogg-" + S().todayISO() + ".csv", csv, "text/csv");
+      toast("Revisionslogg exporterad.");
+    },
     // — årsavslut —
     "edit-bokslut": () => {
       const co = S().getActiveCompany();
@@ -2676,6 +2841,23 @@
     }
     if (t.id === "importInput" && t.files && t.files[0]) {
       importFile(t.files[0]);
+      return;
+    }
+    if (t.id === "bankCsvInput" && t.files && t.files[0]) {
+      const co = S().getActiveCompany();
+      if (!co) return toast("Skapa ett bolag först.", "warn");
+      const file = t.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const res = Faktura.Bank.importCSV(co.id, reader.result, file.name);
+          toast(res.imported + " transaktioner importerade" + (res.skipped ? " (" + res.skipped + " överhoppade)" : "") + ".");
+          render();
+        } catch (e2) {
+          toast(e2.message, "err");
+        }
+      };
+      reader.readAsText(file, "utf-8");
       return;
     }
   }

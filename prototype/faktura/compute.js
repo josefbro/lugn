@@ -218,6 +218,18 @@
     return out;
   }
 
+  /* ── PDF-säker text ───────────────────────────────────────────────────── */
+  /* Intl.NumberFormat (sv-SE) använder U+2212 (minus) och U+00A0/U+202F
+     (hårda mellanslag) som jsPDF:s standardfonter (WinAnsi) inte kan
+     rendera — de blir '"' och utspärrade siffror. Ersätt med ASCII. */
+  function pdfSafe(t) {
+    if (Array.isArray(t)) return t.map(pdfSafe);
+    return String(t == null ? "" : t)
+      .replace(/−/g, "-")
+      .replace(/[   ]/g, " ")
+      .replace(/[–—]/g, "-");
+  }
+
   /* ── Identitets- & KYC-validering ─────────────────────────────────────── */
   function digitsOnly(s) {
     return String(s || "").replace(/\D/g, "");
@@ -302,6 +314,7 @@
 
   /* ── Publikt API ──────────────────────────────────────────────────────── */
   Faktura.Compute = {
+    pdfSafe,
     luhn,
     validateOrgnr,
     validatePersonnr,
