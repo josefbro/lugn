@@ -33,6 +33,13 @@ använda samma app — varje faktura tillhör ett säljarbolag.
   **Rapporter** (resultat- och balansräkning), Momsrapport
   (Skatteverkets rutor), **Årsavslut** (bolagsskatt 20,6 % med
   ett-klicks bokning + checklista) och Export (SIE4 + CSV).
+- **Årsredovisning (K2)** – komplett PDF enligt BFNAR 2016:10:
+  förvaltningsberättelse (verksamhet, flerårsöversikt, förändringar i
+  eget kapital, resultatdisposition), RR, BR, noter och underskrifter.
+- **Inkomstdeklaration 2 (INK2)** – räkenskapsschema (INK2R) och
+  skattemässiga justeringar (INK2S) med SRU-fältkoder, plus export av
+  `INFO.SRU` + `BLANKETTER.SRU` för Skatteverkets filöverföring.
+  Testa alltid filerna i Skatteverkets testtjänst före skarp inlämning.
 
 ## Filer
 
