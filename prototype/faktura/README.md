@@ -25,6 +25,14 @@ använda samma app — varje faktura tillhör ett säljarbolag.
   via EmailJS med PDF som bilaga.
 - **Lagring** – allt i `localStorage` + JSON-export/import. Valfri synk mot
   **Google Drive** (varje bolag kan koppla sitt eget konto).
+- **Bokföring (heltäckande för små AB)** – automatisk dubbel bokföring med
+  BAS-konton från fakturor, utgifter, löner och tillgångar. Flikar:
+  Verifikationer (inkl. manuella med live-balanskontroll), Huvudbok,
+  Utgifter, **Lön** (arbetsgivaravgift 31,42 % + AGI-underlag per månad),
+  **Tillgångar** (rak månadsavskrivning, bokförs automatiskt),
+  **Rapporter** (resultat- och balansräkning), Momsrapport
+  (Skatteverkets rutor), **Årsavslut** (bolagsskatt 20,6 % med
+  ett-klicks bokning + checklista) och Export (SIE4 + CSV).
 
 ## Filer
 
