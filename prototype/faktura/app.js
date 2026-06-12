@@ -433,6 +433,7 @@
       })
       .join("");
     return (
+      head +
       '<div class="card"><table class="data"><thead><tr><th style="width:90px">Ver</th><th>Bokföring</th></tr></thead><tbody>' +
       rows +
       "</tbody></table></div>"
