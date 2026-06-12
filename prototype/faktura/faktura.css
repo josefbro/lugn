@@ -240,6 +240,32 @@ table.lines .num input { text-align: right; }
 .info ol { margin: 8px 0 0; padding-left: 20px; }
 .info li { margin: 3px 0; }
 
+/* ── Låsskärm (inloggning) ──────────────────────────────────────────── */
+.lock-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--cream-50);
+  display: grid; place-items: center; padding: 20px;
+}
+.lock-box {
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-md); padding: 34px 32px; max-width: 420px; width: 100%;
+  text-align: center;
+}
+.lock-title { font-size: 1.5rem; margin: 8px 0 4px; }
+.lock-sub { color: var(--ink-600); font-size: .92rem; margin: 0 0 18px; }
+.lock-form { display: flex; flex-direction: column; gap: 10px; }
+.lock-form input { text-align: center; }
+.lock-status { font-size: .88rem; min-height: 1.2em; margin: 12px 0 0; }
+.lock-status.ok { color: var(--ok); font-weight: 600; }
+.lock-status.err { color: var(--err); font-weight: 600; }
+.lock-setup {
+  margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line);
+  text-align: left; font-size: .85rem;
+}
+.lock-setup h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-400); margin: 0 0 8px; }
+.lock-setup p { color: var(--ink-600); line-height: 1.7; }
+.lock-setup input { margin-bottom: 8px; font-size: .85rem; }
+
 /* ── Responsivt ─────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .editor { grid-template-columns: 1fr; }

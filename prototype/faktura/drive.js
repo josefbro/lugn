@@ -20,8 +20,9 @@
   const Faktura = (window.Faktura = window.Faktura || {});
 
   const SCOPE = "https://www.googleapis.com/auth/drive.file";
+  const APP_FOLDER = "Lugn Faktura"; // allt samlas i denna mapp i Drive
   const DATA_FILENAME = "faktura-data.json";
-  const PDF_FOLDER = "Fakturor";
+  const PDF_FOLDER = "Fakturor"; // undermapp till APP_FOLDER
 
   let tokenClient = null;
   let accessToken = null;
@@ -133,13 +134,50 @@
     accessToken = null;
     s.connectedEmail = "";
     s.fileId = "";
+    s.folderId = "";
     Faktura.Store.save();
   }
 
-  /* ── Hitta/skapa datafilen ────────────────────────────────────────────── */
-  async function findDataFile() {
+  /* ── Appmappen i Drive ("Lugn Faktura") ───────────────────────────────── */
+  async function findFolder(name, parentId) {
     const q = encodeURIComponent(
-      "name='" + DATA_FILENAME + "' and trashed=false"
+      "name='" + name + "' and mimeType='application/vnd.google-apps.folder' and trashed=false" +
+        (parentId ? " and '" + parentId + "' in parents" : "")
+    );
+    const r = await api("drive/v3/files?q=" + q + "&fields=files(id,name)");
+    if (!r.ok) throw new Error("Drive-sökning misslyckades (" + r.status + ").");
+    const data = await r.json();
+    return data.files && data.files[0] ? data.files[0].id : null;
+  }
+
+  async function createFolder(name, parentId) {
+    const meta = { name: name, mimeType: "application/vnd.google-apps.folder" };
+    if (parentId) meta.parents = [parentId];
+    const r = await api("drive/v3/files?fields=id", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(meta),
+    });
+    if (!r.ok) throw new Error("Kunde inte skapa mappen " + name + " (" + r.status + ").");
+    return (await r.json()).id;
+  }
+
+  /* Hitta/skapa "Lugn Faktura"-mappen; cacheas i inställningarna. */
+  async function ensureAppFolder() {
+    const s = Faktura.Store.getState().settings.drive;
+    if (s.folderId) return s.folderId;
+    let id = await findFolder(APP_FOLDER, null);
+    if (!id) id = await createFolder(APP_FOLDER, null);
+    s.folderId = id;
+    Faktura.Store.save();
+    return id;
+  }
+
+  /* ── Hitta/skapa datafilen (i appmappen) ──────────────────────────────── */
+  async function findDataFile() {
+    const folderId = await ensureAppFolder();
+    const q = encodeURIComponent(
+      "name='" + DATA_FILENAME + "' and '" + folderId + "' in parents and trashed=false"
     );
     const r = await api("drive/v3/files?q=" + q + "&spaces=drive&fields=files(id,name,modifiedTime)");
     if (!r.ok) throw new Error("Drive-sökning misslyckades (" + r.status + ").");
@@ -174,6 +212,7 @@
       if (!fileId) {
         const existing = await findDataFile();
         fileId = existing ? existing.id : null;
+        if (!fileId) meta.parents = [await ensureAppFolder()]; // ny fil → lägg i appmappen
       }
 
       const method = fileId ? "PATCH" : "POST";
@@ -218,20 +257,12 @@
     return true;
   }
 
-  /* ── Ladda upp en faktura-PDF till en mapp i Drive ────────────────────── */
+  /* ── Ladda upp en faktura-PDF till undermappen "Fakturor" ─────────────── */
   async function ensureFolder() {
-    const q = encodeURIComponent(
-      "name='" + PDF_FOLDER + "' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-    );
-    const r = await api("drive/v3/files?q=" + q + "&fields=files(id,name)");
-    const data = await r.json();
-    if (data.files && data.files[0]) return data.files[0].id;
-    const cr = await api("drive/v3/files?fields=id", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: PDF_FOLDER, mimeType: "application/vnd.google-apps.folder" }),
-    });
-    return (await cr.json()).id;
+    const appId = await ensureAppFolder();
+    let id = await findFolder(PDF_FOLDER, appId);
+    if (!id) id = await createFolder(PDF_FOLDER, appId);
+    return id;
   }
 
   async function uploadPdf(inv, company, customer) {

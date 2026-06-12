@@ -34,7 +34,7 @@
       auditLog: [],
       settings: {
         emailjs: { publicKey: "", serviceId: "", templateId: "" },
-        drive: { clientId: "", fileId: "", connectedEmail: "", autoSync: false },
+        drive: { clientId: "", fileId: "", folderId: "", connectedEmail: "", autoSync: false },
       },
     };
   }
