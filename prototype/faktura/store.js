@@ -29,6 +29,7 @@
       manualVers: [],
       payrolls: [],
       assets: [],
+      bokslut: [],
       settings: {
         emailjs: { publicKey: "", serviceId: "", templateId: "" },
         drive: { clientId: "", fileId: "", connectedEmail: "", autoSync: false },
@@ -223,6 +224,27 @@
         date: todayISO(), // inköpsdatum
         cost: 0, // anskaffningsvärde exkl moms
         lifeYears: 5, // nyttjandeperiod
+      },
+      over || {}
+    );
+  }
+
+  /* Bokslutsuppgifter — ett objekt per bolag och räkenskapsår.
+     Används av årsredovisning (K2) och inkomstdeklaration (INK2). */
+  function newBokslut(over) {
+    return Object.assign(
+      {
+        id: uid("bk"),
+        companyId: null,
+        year: todayISO().slice(0, 4),
+        verksamhet: "", // beskrivning till förvaltningsberättelsen
+        ort: "", // ort för underskrifter
+        styrelse: "", // kommaseparerade namn
+        medelAnstallda: "", // medelantal anställda (tomt = härleds från löner)
+        utdelning: 0, // föreslagen utdelning i resultatdispositionen
+        ejAvdragsgilla: 0, // INK2S 4.3c
+        ejSkattepliktiga: 0, // INK2S 4.5c
+        underskottForegAr: 0, // INK2S 4.14a
       },
       over || {}
     );
@@ -432,6 +454,13 @@
   const manualCrud = makeCrud("manualVers");
   const payrollCrud = makeCrud("payrolls");
   const assetCrud = makeCrud("assets");
+  const bokslutCrud = makeCrud("bokslut");
+
+  function getBokslutFor(companyId, year) {
+    return (
+      state.bokslut.find((b) => b.companyId === companyId && String(b.year) === String(year)) || null
+    );
+  }
 
   /* ── Export / import ──────────────────────────────────────────────────── */
   function exportJSON() {
@@ -446,7 +475,7 @@
         arr.forEach((x) => (m[x.id] = x));
         return m;
       };
-      ["companies", "customers", "invoices", "expenses", "manualVers", "payrolls", "assets"].forEach((k) => {
+      ["companies", "customers", "invoices", "expenses", "manualVers", "payrolls", "assets", "bokslut"].forEach((k) => {
         const cur = byId(state[k]);
         (parsed[k] || []).forEach((x) => (cur[x.id] = x));
         state[k] = Object.values(cur);
@@ -517,6 +546,10 @@
     getAsset: assetCrud.get,
     upsertAsset: assetCrud.upsert,
     deleteAsset: assetCrud.remove,
+    // bokslut
+    newBokslut,
+    getBokslutFor,
+    upsertBokslut: bokslutCrud.upsert,
     // i/o
     exportJSON,
     importJSON,

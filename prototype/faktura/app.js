@@ -947,49 +947,144 @@
     );
   }
 
-  /* ── Årsavslut ────────────────────────────────────────────────────────── */
+  /* ── Årsavslut: bokslut, INK2 och K2-årsredovisning ───────────────────── */
   function bokArsavslut(cid) {
-    const t = Faktura.Bok.taxEstimate(cid, bokFrom, bokTo);
+    const year = bokFrom.slice(0, 4);
+    const d = Faktura.Ars.ink2Data(cid, year);
+    const bk = Faktura.Ars.bokslutFor(cid, year);
     const items = [
       "Alla kundfakturor för året är bokförda (markerade som skickade/betalda).",
       "Alla utgifter och leverantörsfakturor är registrerade under Utgifter.",
       "Alla lönekörningar är registrerade och AGI inlämnad varje månad.",
-      "Avskrivningar är bokförda (sker automatiskt under Tillgångar).",
       "Momsdeklarationerna för årets perioder är inlämnade (se Momsrapport).",
+      "Bokslutsuppgifterna är ifyllda (verksamhet, styrelse, ev. justeringar).",
       "Bolagsskatten är bokförd (knappen nedan).",
-      "SIE-fil exporterad till redovisningskonsult för årsredovisning (K2) till Bolagsverket.",
+      "Årsredovisningen (K2) är genererad, underskriven av styrelsen och inlämnad till Bolagsverket (med fastställelseintyg).",
+      "INK2 är inlämnad till Skatteverket (SRU-filer eller manuellt via e-tjänsten).",
       "Årsstämma hålls och ev. utdelning beslutas (styr K10-utrymmet).",
     ];
+    const sruRow = (f) =>
+      "<tr><td class=\"muted\" style=\"width:64px\">" +
+      (f.falt || "") +
+      '</td><td class="muted" style="width:64px">' +
+      f.code +
+      "</td><td>" +
+      esc(f.label) +
+      '</td><td class="num">' +
+      C().num(f.value, 0) +
+      " kr</td></tr>";
+
     return (
-      '<div class="card"><h2>Skatteberäkning ' +
-      esc(bokFrom.slice(0, 4)) +
+      // — Bokslutsuppgifter —
+      '<div class="card"><h2>Bokslutsuppgifter ' +
+      esc(year) +
       "</h2>" +
+      '<p class="muted small">Verksamhetsbeskrivning, styrelse, föreslagen utdelning och skattemässiga justeringar — används i årsredovisningen och INK2.</p>' +
+      '<p class="small">' +
+      (bk.verksamhet ? "✓ Verksamhet: " + esc(bk.verksamhet.slice(0, 80)) + (bk.verksamhet.length > 80 ? "…" : "") : "— Verksamhetsbeskrivning saknas") +
+      "<br>" +
+      (bk.styrelse ? "✓ Styrelse: " + esc(bk.styrelse) : "— Styrelseledamöter saknas") +
+      "</p>" +
+      '<div class="btn-row"><button class="btn btn-primary" data-action="edit-bokslut">Redigera bokslutsuppgifter</button></div></div>' +
+      // — Skatteberäkning (INK2S-kedjan) —
+      '<div class="card"><h2>Skatteberäkning ' +
+      esc(year) +
+      " (INK2S)</h2>" +
       '<table class="data"><tbody>' +
-      "<tr><td>Resultat före skatt</td><td class=\"num\">" +
-      C().num(t.resultatForeSkatt) +
-      " kr</td></tr>" +
-      '<tr><td>Beräknad bolagsskatt (' +
+      d.S.map(sruRow).join("") +
+      '<tr style="font-weight:700"><td colspan="3">Beräknad bolagsskatt (' +
       C().num(Faktura.Bok.TAX_RATE_AB * 100, 1) +
-      ' %)</td><td class="num">' +
-      C().num(t.beraknadSkatt) +
+      ' % av överskott)</td><td class="num">' +
+      C().num(d.beraknadSkatt, 0) +
       " kr</td></tr>" +
-      '<tr><td>Redan bokförd skatt</td><td class="num">' +
-      C().num(t.bokfordSkatt) +
+      '<tr><td colspan="3">Redan bokförd skatt</td><td class="num">' +
+      C().num(d.bokfordSkatt, 0) +
       " kr</td></tr>" +
-      '<tr style="font-weight:700"><td>Kvar att bokföra</td><td class="num">' +
-      C().num(t.resterande) +
+      '<tr style="font-weight:700"><td colspan="3">Kvar att bokföra</td><td class="num">' +
+      C().num(d.resterande, 0) +
       " kr</td></tr>" +
       "</tbody></table>" +
+      '<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" data-action="book-tax"' +
+      (d.resterande > 0 ? "" : " disabled") +
+      ">Bokför bolagsskatt (8910/2510)</button></div></div>" +
+      // — INK2 —
+      '<div class="card"><h2>Inkomstdeklaration 2 — räkenskapsschema (INK2R)</h2>' +
+      '<p class="muted small">Fältkoderna (SRU) motsvarar rutorna i INK2R. Överskott/underskott från INK2S förs till ruta 1.1/1.2 på INK2:s första sida.</p>' +
+      '<table class="data"><thead><tr><th>Fält</th><th>SRU</th><th>Post</th><th class="num">Belopp</th></tr></thead><tbody>' +
+      d.R.map(sruRow).join("") +
+      "</tbody></table>" +
       '<div class="btn-row" style="margin-top:14px">' +
-      '<button class="btn btn-primary" data-action="book-tax"' +
-      (t.resterande > 0 ? "" : " disabled") +
-      ">Bokför bolagsskatt (8910/2510)</button></div>" +
-      '<p class="muted small" style="margin-top:10px">Estimat utan skattemässiga justeringar (ej avdragsgilla kostnader, periodiseringsfonder m.m.) — stäm av med din konsult.</p>' +
+      '<button class="btn btn-primary" data-action="dl-sru">⬇ SRU-filer (INFO.SRU + BLANKETTER.SRU)</button></div>' +
+      '<p class="muted small" style="margin-top:10px">Ladda upp via Skatteverkets filöverföring. Testa alltid först i Skatteverkets <em>testtjänst för filöverföring</em>. Schablonjusteringar (periodiseringsfond, ränteavdragsbegränsning m.m.) ingår inte — stäm av med konsult vid behov.</p>' +
       "</div>" +
+      // — K2 —
+      '<div class="card"><h2>Årsredovisning (K2)</h2>' +
+      '<p class="muted small">Komplett årsredovisning enligt BFNAR 2016:10: förvaltningsberättelse med flerårsöversikt och resultatdisposition, resultat- och balansräkning, noter och underskriftssida. Skrivs under av styrelsen och lämnas till Bolagsverket med fastställelseintyg.</p>' +
+      '<div class="btn-row"><button class="btn btn-coral" data-action="dl-k2">⬇ Årsredovisning ' +
+      esc(year) +
+      " (PDF)</button></div></div>" +
+      // — Checklista —
       '<div class="card"><h2>Checklista årsavslut</h2><ul class="checklist">' +
       items.map((i) => '<li><span class="dot" style="background:var(--sage-500)">·</span><span>' + esc(i) + "</span></li>").join("") +
       "</ul></div>"
     );
+  }
+
+  function bokslutForm(bk) {
+    const f = (label, key, val, type, full, hint) =>
+      '<div class="field' +
+      (full ? " full" : "") +
+      '"><label>' +
+      esc(label) +
+      '</label><input type="' +
+      (type || "text") +
+      '" data-bk="' +
+      key +
+      '" value="' +
+      esc(val == null ? "" : val) +
+      '">' +
+      (hint ? '<span class="hint">' + esc(hint) + "</span>" : "") +
+      "</div>";
+    return (
+      "<h2>Bokslutsuppgifter " +
+      esc(bk.year) +
+      "</h2>" +
+      '<div class="form-grid">' +
+      '<div class="field full"><label>Verksamhetsbeskrivning (förvaltningsberättelsen)</label><textarea data-bk="verksamhet" placeholder="Bolaget bedriver konsultverksamhet inom ...">' +
+      esc(bk.verksamhet) +
+      "</textarea></div>" +
+      f("Ort (underskrifter)", "ort", bk.ort) +
+      f("Styrelseledamöter (kommaseparerade)", "styrelse", bk.styrelse) +
+      f("Medelantal anställda (tomt = härleds från löner)", "medelAnstallda", bk.medelAnstallda) +
+      f("Föreslagen utdelning (kr)", "utdelning", bk.utdelning) +
+      f("Ej avdragsgilla kostnader (INK2S 4.3c)", "ejAvdragsgilla", bk.ejAvdragsgilla, "text", false, "t.ex. representation över schablon, förseningsavgifter") +
+      f("Ej skattepliktiga intäkter (INK2S 4.5c)", "ejSkattepliktiga", bk.ejSkattepliktiga) +
+      f("Outnyttjat underskott föregående år (4.14a)", "underskottForegAr", bk.underskottForegAr) +
+      "</div>" +
+      '<div class="modal-foot"><button class="btn btn-ghost" data-action="close-modal">Avbryt</button>' +
+      '<button class="btn btn-primary" data-action="save-bokslut" data-id="' +
+      bk.id +
+      '">Spara</button></div>'
+    );
+  }
+
+  function saveBokslut(id) {
+    const year = bokFrom.slice(0, 4);
+    const co = S().getActiveCompany();
+    const existing = S().getBokslutFor(co.id, year);
+    const bk = existing || S().newBokslut({ companyId: co.id, year: year });
+    bk.id = id || bk.id;
+    modalEl.querySelectorAll("[data-bk]").forEach((inp) => {
+      const key = inp.getAttribute("data-bk");
+      let v = inp.value;
+      if (key === "utdelning" || key === "ejAvdragsgilla" || key === "ejSkattepliktiga" || key === "underskottForegAr")
+        v = C().toNum(v);
+      bk[key] = v;
+    });
+    S().upsertBokslut(bk);
+    closeModal();
+    toast("Bokslutsuppgifter sparade.");
+    render();
   }
 
   /* Utgiftsformulär (modal) */
@@ -2133,10 +2228,36 @@
       render();
     },
     // — årsavslut —
+    "edit-bokslut": () => {
+      const co = S().getActiveCompany();
+      if (!co) return toast("Skapa ett bolag först.", "warn");
+      openModal(bokslutForm(Faktura.Ars.bokslutFor(co.id, bokFrom.slice(0, 4))));
+    },
+    "save-bokslut": (id) => saveBokslut(id),
+    "dl-k2": () => {
+      const co = S().getActiveCompany();
+      if (!co) return;
+      try {
+        const year = bokFrom.slice(0, 4);
+        Faktura.Ars.k2Pdf(co.id, year).save(Faktura.Ars.k2Filename(co.id, year));
+        toast("Årsredovisning (K2) nedladdad.");
+      } catch (err) {
+        toast(err.message, "err");
+      }
+    },
+    "dl-sru": () => {
+      const co = S().getActiveCompany();
+      if (!co) return;
+      if (!co.orgnr) return toast("Bolaget saknar organisationsnummer.", "warn");
+      const files = Faktura.Ars.sruFiles(co.id, bokFrom.slice(0, 4));
+      downloadText("INFO.SRU", files.info, "text/plain");
+      setTimeout(() => downloadText("BLANKETTER.SRU", files.blanketter, "text/plain"), 400);
+      toast("SRU-filer nedladdade — testa i Skatteverkets testtjänst.");
+    },
     "book-tax": () => {
       const co = S().getActiveCompany();
       if (!co) return;
-      const t = Faktura.Bok.taxEstimate(co.id, bokFrom, bokTo);
+      const t = Faktura.Ars.ink2Data(co.id, bokFrom.slice(0, 4));
       if (t.resterande <= 0) return toast("Ingen skatt kvar att bokföra.", "warn");
       S().upsertManualVer(
         S().newManualVer({
