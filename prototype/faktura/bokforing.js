@@ -16,11 +16,26 @@
   const C = () => Faktura.Compute;
   const S = () => Faktura.Store;
 
+  /* ── Konstanter (2026 — kontrollera mot Skatteverket) ─────────────────── */
+  const AG_RATE = 0.3142; // arbetsgivaravgift, full sats
+  const TAX_RATE_AB = 0.206; // bolagsskatt
+
   /* ── BAS-kontoplan (delmängd) ─────────────────────────────────────────── */
   const ACCOUNTS = {
+    1220: "Inventarier och verktyg",
+    1229: "Ack. avskrivningar inventarier",
     1510: "Kundfordringar",
+    1630: "Skattekonto",
     1930: "Företagskonto / bank",
+    2081: "Aktiekapital",
+    2091: "Balanserad vinst eller förlust",
+    2098: "Vinst/förlust föregående år",
+    2099: "Årets resultat",
     2440: "Leverantörsskulder",
+    2510: "Skatteskulder",
+    2710: "Personalskatt",
+    2731: "Avräkning lagstadgade sociala avgifter",
+    2898: "Outtagen vinstutdelning",
     2611: "Utgående moms 25 %",
     2621: "Utgående moms 12 %",
     2631: "Utgående moms 6 %",
@@ -39,6 +54,12 @@
     6000: "Övriga externa kostnader",
     6540: "IT-tjänster",
     6570: "Bankkostnader",
+    7210: "Löner till tjänstemän",
+    7510: "Lagstadgade sociala avgifter",
+    7832: "Avskrivningar inventarier",
+    8310: "Ränteintäkter",
+    8423: "Räntekostnader",
+    8910: "Skatt på årets resultat",
   };
 
   // Kostnadskategorier (utgifter) som visas i UI.
@@ -138,6 +159,97 @@
     };
   }
 
+  /* ── Lön ──────────────────────────────────────────────────────────────── */
+  /* Delbelopp för en lönekörning. Prelskatt är förenklad (procentsats) —
+     den riktiga dras enligt Skatteverkets skattetabell. */
+  function payrollParts(p) {
+    const C2 = C();
+    const gross = C2.toNum(p.gross);
+    const ag = r2(gross * AG_RATE);
+    const tax = r2((gross * C2.toNum(p.taxPct)) / 100);
+    const net = r2(gross - tax);
+    return { gross: gross, ag: ag, tax: tax, net: net, total: r2(gross + ag) };
+  }
+
+  function payrollVer(p) {
+    const x = payrollParts(p);
+    return {
+      date: p.payDate || p.period + "-25",
+      text: "Lön " + p.period + (p.employee ? " " + p.employee : ""),
+      lines: [
+        { account: "7210", debit: x.gross, credit: 0 },
+        { account: "7510", debit: x.ag, credit: 0 },
+        { account: "2710", debit: 0, credit: x.tax },
+        { account: "2731", debit: 0, credit: x.ag },
+        { account: "1930", debit: 0, credit: x.net },
+      ],
+      kind: "payroll",
+      source: p.id,
+    };
+  }
+
+  /* ── Anläggningstillgångar (rak avskrivning per månad) ────────────────── */
+  function monthEndISO(y, m) {
+    const d = new Date(y, m + 1, 0);
+    return (
+      d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0")
+    );
+  }
+
+  /* Avskrivningsplan fram till `until` (eller idag). */
+  function assetSchedule(a, until) {
+    const cost = C().toNum(a.cost);
+    const life = Math.max(1, parseInt(a.lifeYears, 10) || 5);
+    const monthly = r2(cost / (life * 12));
+    const lim = until || Faktura.Store.todayISO();
+    const start = new Date(a.date + "T00:00:00");
+    const entries = [];
+    let acc = 0;
+    let y = start.getFullYear(),
+      m = start.getMonth();
+    while (acc < cost - 0.005) {
+      const date = monthEndISO(y, m);
+      if (date > lim) break;
+      const amt = Math.min(monthly, r2(cost - acc));
+      acc = r2(acc + amt);
+      entries.push({ date: date, amount: amt });
+      m++;
+      if (m > 11) {
+        m = 0;
+        y++;
+      }
+      if (entries.length > 1200) break; // skyddsnät
+    }
+    return { monthly: monthly, entries: entries, acc: acc, value: r2(cost - acc) };
+  }
+
+  function assetPurchaseVer(a) {
+    const cost = C().toNum(a.cost);
+    return {
+      date: a.date,
+      text: "Inköp inventarie: " + (a.name || ""),
+      lines: [
+        { account: "1220", debit: cost, credit: 0 },
+        { account: "1930", debit: 0, credit: cost },
+      ],
+      kind: "asset",
+      source: a.id,
+    };
+  }
+
+  function assetDepVers(a, until) {
+    return assetSchedule(a, until).entries.map((e) => ({
+      date: e.date,
+      text: "Avskrivning " + (a.name || "") + " (" + e.date.slice(0, 7) + ")",
+      lines: [
+        { account: "7832", debit: e.amount, credit: 0 },
+        { account: "1229", debit: 0, credit: e.amount },
+      ],
+      kind: "depreciation",
+      source: a.id,
+    }));
+  }
+
   /* ── Alla verifikationer i en period ──────────────────────────────────── */
   function verifications(companyId, from, to) {
     const invoices = S().listInvoices(companyId).filter((i) => i.status === "sent" || i.status === "paid");
@@ -151,6 +263,25 @@
     expenses.forEach((exp) => {
       vers.push(expenseVer(exp));
       if (exp.paid) vers.push(expensePaymentVer(exp));
+    });
+    // Manuella verifikationer
+    S().listManualVers(companyId).forEach((mv) => {
+      vers.push({
+        date: mv.date,
+        text: mv.text || "Manuell verifikation",
+        lines: (mv.lines || [])
+          .filter((l) => l.account)
+          .map((l) => ({ account: String(l.account), debit: C().toNum(l.debit), credit: C().toNum(l.credit) })),
+        kind: "manual",
+        source: mv.id,
+      });
+    });
+    // Löner
+    S().listPayrolls(companyId).forEach((p) => vers.push(payrollVer(p)));
+    // Tillgångar: inköp + avskrivningar fram till periodens slut
+    S().listAssets(companyId).forEach((a) => {
+      vers.push(assetPurchaseVer(a));
+      assetDepVers(a, to).forEach((v) => vers.push(v));
     });
     if (from) vers = vers.filter((v) => v.date >= from);
     if (to) vers = vers.filter((v) => v.date <= to);
@@ -257,6 +388,110 @@
     return { revenue: revenue, costs: costs, result: r2(revenue - costs) };
   }
 
+  /* ── Resultaträkning (kontogruppsbaserad) ─────────────────────────────── */
+  function resultatrakning(companyId, from, to) {
+    const led = ledger(companyId, from, to);
+    const sum = (lo, hi, side) =>
+      r2(
+        led
+          .filter((a) => {
+            const n = Number(a.account);
+            return n >= lo && n <= hi;
+          })
+          .reduce((s, a) => s + (side === "credit" ? a.credit - a.debit : a.debit - a.credit), 0)
+      );
+    const revenue = sum(3000, 3999, "credit");
+    const goods = sum(4000, 4999, "debit");
+    const external = sum(5000, 6999, "debit");
+    const personnel = sum(7000, 7699, "debit");
+    const depreciation = sum(7700, 7899, "debit");
+    const otherOp = sum(7900, 7999, "debit");
+    const finIncome = sum(8000, 8399, "credit");
+    const finCost = sum(8400, 8799, "debit");
+    const tax = sum(8800, 8999, "debit");
+    const ebit = r2(revenue - goods - external - personnel - depreciation - otherOp);
+    const resultatForeSkatt = r2(ebit + finIncome - finCost);
+    return {
+      revenue: revenue,
+      goods: goods,
+      external: external,
+      personnel: personnel,
+      depreciation: depreciation,
+      otherOp: otherOp,
+      finIncome: finIncome,
+      finCost: finCost,
+      tax: tax,
+      ebit: ebit,
+      resultatForeSkatt: resultatForeSkatt,
+      result: r2(resultatForeSkatt - tax),
+      costsTotal: r2(goods + external + personnel + depreciation + otherOp),
+    };
+  }
+
+  /* ── Balansräkning ────────────────────────────────────────────────────── */
+  function balansrakning(companyId, from, to) {
+    const led = ledger(companyId, from, to);
+    const sum = (lo, hi, side) =>
+      r2(
+        led
+          .filter((a) => {
+            const n = Number(a.account);
+            return n >= lo && n <= hi;
+          })
+          .reduce((s, a) => s + (side === "credit" ? a.credit - a.debit : a.debit - a.credit), 0)
+      );
+    const anlaggning = sum(1000, 1399, "debit");
+    const omsattning = sum(1400, 1999, "debit");
+    const egetKapital = sum(2000, 2199, "credit");
+    const langfristiga = sum(2200, 2399, "credit");
+    const kortfristiga = sum(2400, 2999, "credit");
+    const tillgangar = r2(anlaggning + omsattning);
+    const skulderEK = r2(egetKapital + langfristiga + kortfristiga);
+    // Periodens resultat (intäkter − kostnader) gör att BR balanserar.
+    const beraknatResultat = r2(tillgangar - skulderEK);
+    return {
+      anlaggning: anlaggning,
+      omsattning: omsattning,
+      tillgangar: tillgangar,
+      egetKapital: egetKapital,
+      langfristiga: langfristiga,
+      kortfristiga: kortfristiga,
+      beraknatResultat: beraknatResultat,
+      summaEKSkulder: r2(skulderEK + beraknatResultat),
+      balanced: Math.abs(tillgangar - (skulderEK + beraknatResultat)) < 0.01,
+    };
+  }
+
+  /* ── AGI-underlag (arbetsgivardeklaration per period) ─────────────────── */
+  function agiSummary(companyId, from, to) {
+    const byPeriod = {};
+    S()
+      .listPayrolls(companyId)
+      .filter((p) => (!from || p.payDate >= from) && (!to || p.payDate <= to))
+      .forEach((p) => {
+        const x = payrollParts(p);
+        if (!byPeriod[p.period]) byPeriod[p.period] = { period: p.period, gross: 0, tax: 0, ag: 0, count: 0 };
+        const b = byPeriod[p.period];
+        b.gross = r2(b.gross + x.gross);
+        b.tax = r2(b.tax + x.tax);
+        b.ag = r2(b.ag + x.ag);
+        b.count++;
+      });
+    return Object.values(byPeriod).sort((a, b) => (a.period < b.period ? -1 : 1));
+  }
+
+  /* ── Bolagsskatt (estimat) ────────────────────────────────────────────── */
+  function taxEstimate(companyId, from, to) {
+    const rr = resultatrakning(companyId, from, to);
+    const base = Math.max(0, rr.resultatForeSkatt);
+    return {
+      resultatForeSkatt: rr.resultatForeSkatt,
+      beraknadSkatt: r2(base * TAX_RATE_AB),
+      bokfordSkatt: rr.tax,
+      resterande: r2(Math.max(0, r2(base * TAX_RATE_AB) - rr.tax)),
+    };
+  }
+
   /* ── SIE4-export ──────────────────────────────────────────────────────── */
   function pad(n) {
     return String(n).padStart(2, "0");
@@ -330,11 +565,19 @@
   Faktura.Bok = {
     ACCOUNTS,
     EXPENSE_ACCOUNTS,
+    AG_RATE,
+    TAX_RATE_AB,
     accountName,
     verifications,
     ledger,
     vatReport,
     income,
+    payrollParts,
+    assetSchedule,
+    resultatrakning,
+    balansrakning,
+    agiSummary,
+    taxEstimate,
     exportSIE,
     exportCSV,
   };

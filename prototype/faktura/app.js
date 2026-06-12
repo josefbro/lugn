@@ -324,8 +324,12 @@
       ["verifikationer", "Verifikationer"],
       ["huvudbok", "Huvudbok"],
       ["utgifter", "Utgifter"],
+      ["lon", "Lön"],
+      ["tillgangar", "Tillgångar"],
+      ["rapporter", "Rapporter"],
       ["moms", "Momsrapport"],
-      ["export", "Skatt &amp; export"],
+      ["arsavslut", "Årsavslut"],
+      ["export", "Export"],
     ];
     const tabBtns = tabs
       .map(
@@ -344,10 +348,14 @@
     if (bokTab === "verifikationer") body = bokVerifikationer(cid);
     else if (bokTab === "huvudbok") body = bokHuvudbok(cid);
     else if (bokTab === "utgifter") body = bokUtgifter(cid);
+    else if (bokTab === "lon") body = bokLon(cid);
+    else if (bokTab === "tillgangar") body = bokTillgangar(cid);
+    else if (bokTab === "rapporter") body = bokRapporter(cid);
     else if (bokTab === "moms") body = bokMoms(cid);
+    else if (bokTab === "arsavslut") body = bokArsavslut(cid);
     else if (bokTab === "export") body = bokExport(cid);
 
-    const showPeriod = bokTab !== "utgifter";
+    const showPeriod = bokTab !== "utgifter" && bokTab !== "tillgangar";
 
     return (
       '<div class="page-head"><div><h1>Bokföring</h1><p>Automatisk dubbel bokföring från dina fakturor och utgifter — underlag för Skatteverket.</p></div></div>' +
@@ -383,8 +391,10 @@
 
   function bokVerifikationer(cid) {
     const vers = Faktura.Bok.verifications(cid, bokFrom, bokTo);
+    const head =
+      '<div class="page-head" style="margin-bottom:12px"><div></div><div class="btn-row"><button class="btn btn-primary" data-action="new-manual">+ Manuell verifikation</button></div></div>';
     if (!vers.length)
-      return '<div class="card"><p class="muted">Inga bokförda händelser i perioden. Skicka en faktura eller lägg till en utgift.</p></div>';
+      return head + '<div class="card"><p class="muted">Inga bokförda händelser i perioden. Skicka en faktura, lägg till en utgift, lön eller manuell verifikation.</p></div>';
     const rows = vers
       .map((v) => {
         const lines = v.lines
@@ -407,7 +417,11 @@
           v.no +
           '</strong><br><span class="muted small">' +
           esc(v.date) +
-          "</span></td>" +
+          "</span>" +
+          (v.kind === "manual"
+            ? '<br><button class="line-del" data-action="del-manual" data-id="' + v.source + '" title="Radera manuell verifikation">🗑</button>'
+            : "") +
+          "</td>" +
           "<td><strong>" +
           esc(v.text) +
           "</strong>" +
@@ -495,7 +509,8 @@
 
   function bokMoms(cid) {
     const r = Faktura.Bok.vatReport(cid, bokFrom, bokTo);
-    const inc = Faktura.Bok.income(cid, bokFrom, bokTo);
+    const rr = Faktura.Bok.resultatrakning(cid, bokFrom, bokTo);
+    const inc = { revenue: rr.revenue, costs: rr.costsTotal, result: rr.resultatForeSkatt };
     const box = (n, label, val, strong) =>
       "<tr" +
       (strong ? ' style="font-weight:700"' : "") +
@@ -553,6 +568,426 @@
       (co ? "" : "välj ett bolag och ") +
       "se till att fakturor är markerade som <em>skickade</em> (de bokförs först då) och att betalningar/utgifter är registrerade.</p>" +
       "</div>"
+    );
+  }
+
+  /* ── Lön ──────────────────────────────────────────────────────────────── */
+  function bokLon(cid) {
+    const list = S()
+      .listPayrolls(cid)
+      .filter((p) => (!bokFrom || p.payDate >= bokFrom) && (!bokTo || p.payDate <= bokTo));
+    const rows = list
+      .map((p) => {
+        const x = Faktura.Bok.payrollParts(p);
+        return (
+          "<tr><td>" +
+          esc(p.period) +
+          "</td><td><strong>" +
+          esc(p.employee || "—") +
+          '</strong></td><td class="num">' +
+          C().num(x.gross) +
+          '</td><td class="num">' +
+          C().num(x.tax) +
+          '</td><td class="num">' +
+          C().num(x.ag) +
+          '</td><td class="num"><strong>' +
+          C().num(x.net) +
+          "</strong></td><td>" +
+          esc(p.payDate) +
+          '</td><td class="row-actions">' +
+          iconBtn("edit-payroll", p.id, "Redigera", "✏️") +
+          iconBtn("del-payroll", p.id, "Radera", "🗑") +
+          "</td></tr>"
+        );
+      })
+      .join("");
+    const agi = Faktura.Bok.agiSummary(cid, bokFrom, bokTo);
+    const agiRows = agi
+      .map(
+        (b) =>
+          "<tr><td><strong>" +
+          esc(b.period) +
+          "</strong> (" +
+          b.count +
+          ' st)</td><td class="num">' +
+          C().num(b.gross) +
+          '</td><td class="num">' +
+          C().num(b.tax) +
+          '</td><td class="num">' +
+          C().num(b.ag) +
+          '</td><td class="num"><strong>' +
+          C().num(C().round2(b.tax + b.ag)) +
+          "</strong></td></tr>"
+      )
+      .join("");
+    return (
+      '<div class="page-head" style="margin-bottom:12px"><div></div><div class="btn-row"><button class="btn btn-primary" data-action="new-payroll">+ Ny lönekörning</button></div></div>' +
+      '<div class="card"><h2>Lönekörningar</h2>' +
+      (list.length
+        ? '<table class="data"><thead><tr><th>Period</th><th>Anställd</th><th class="num">Brutto</th><th class="num">Prelskatt</th><th class="num">Arb.avgift</th><th class="num">Netto</th><th>Utbetald</th><th></th></tr></thead><tbody>' +
+          rows +
+          "</tbody></table>"
+        : '<p class="muted">Inga löner i perioden. Lägg till en lönekörning så bokförs lön, preliminärskatt och arbetsgivaravgifter automatiskt.</p>') +
+      "</div>" +
+      (agi.length
+        ? '<div class="card"><h2>Underlag arbetsgivardeklaration (AGI)</h2>' +
+          '<p class="muted small">Deklareras månadsvis på skatteverket.se. Arbetsgivaravgift ' +
+          C().num(Faktura.Bok.AG_RATE * 100, 2) +
+          " % (full sats). Preliminärskatten här är en förenklad procentsats — använd Skatteverkets skattetabell för exakt belopp.</p>" +
+          '<table class="data"><thead><tr><th>Period</th><th class="num">Bruttolön (ruta 011)</th><th class="num">Avdragen skatt</th><th class="num">Arb.avgifter</th><th class="num">Att betala</th></tr></thead><tbody>' +
+          agiRows +
+          "</tbody></table></div>"
+        : "")
+    );
+  }
+
+  function payrollForm(p) {
+    return (
+      "<h2>" +
+      (p.employee ? "Redigera lönekörning" : "Ny lönekörning") +
+      "</h2>" +
+      '<div class="form-grid">' +
+      '<div class="field"><label>Period (ÅÅÅÅ-MM)</label><input type="month" data-pf="period" value="' +
+      esc(p.period) +
+      '"></div>' +
+      '<div class="field"><label>Anställd</label><input type="text" data-pf="employee" value="' +
+      esc(p.employee) +
+      '"></div>' +
+      '<div class="field"><label>Bruttolön (kr)</label><input type="text" inputmode="decimal" data-pf="gross" value="' +
+      esc(p.gross) +
+      '"></div>' +
+      '<div class="field"><label>Preliminärskatt (%)</label><input type="text" inputmode="decimal" data-pf="taxPct" value="' +
+      esc(p.taxPct) +
+      '"><span class="hint">Förenklad — se skattetabell för exakt</span></div>' +
+      '<div class="field"><label>Utbetalningsdag</label><input type="date" data-pf="payDate" value="' +
+      esc(p.payDate) +
+      '"></div>' +
+      "</div>" +
+      '<div class="modal-foot"><button class="btn btn-ghost" data-action="close-modal">Avbryt</button>' +
+      '<button class="btn btn-primary" data-action="save-payroll" data-id="' +
+      p.id +
+      '">Spara lön</button></div>'
+    );
+  }
+
+  function savePayroll(id) {
+    const existing = S().getPayroll(id);
+    const p = existing || S().newPayroll();
+    p.id = id;
+    modalEl.querySelectorAll("[data-pf]").forEach((inp) => {
+      const key = inp.getAttribute("data-pf");
+      let v = inp.value;
+      if (key === "gross" || key === "taxPct") v = C().toNum(v);
+      p[key] = v;
+    });
+    if (!p.gross) return toast("Ange bruttolön.", "warn");
+    if (!p.companyId) {
+      const co = S().getActiveCompany();
+      p.companyId = co ? co.id : null;
+    }
+    S().upsertPayroll(p);
+    closeModal();
+    toast("Lönekörning sparad och bokförd.");
+    render();
+  }
+
+  /* ── Tillgångar ───────────────────────────────────────────────────────── */
+  function bokTillgangar(cid) {
+    const assets = S().listAssets(cid);
+    const until = bokTo || S().todayISO();
+    const rows = assets
+      .map((a) => {
+        const sch = Faktura.Bok.assetSchedule(a, until);
+        return (
+          "<tr><td><strong>" +
+          esc(a.name) +
+          "</strong></td><td>" +
+          esc(a.date) +
+          '</td><td class="num">' +
+          C().num(C().toNum(a.cost)) +
+          "</td><td>" +
+          a.lifeYears +
+          ' år</td><td class="num">' +
+          C().num(sch.acc) +
+          '</td><td class="num"><strong>' +
+          C().num(sch.value) +
+          "</strong></td>" +
+          '<td class="row-actions">' +
+          iconBtn("edit-asset", a.id, "Redigera", "✏️") +
+          iconBtn("del-asset", a.id, "Radera", "🗑") +
+          "</td></tr>"
+        );
+      })
+      .join("");
+    return (
+      '<div class="page-head" style="margin-bottom:12px"><div></div><div class="btn-row"><button class="btn btn-primary" data-action="new-asset">+ Ny tillgång</button></div></div>' +
+      '<div class="card"><h2>Anläggningstillgångar</h2>' +
+      '<p class="muted small">Inköpet bokförs mot bank (1220/1930) och skrivs av rakt per månad (7832/1229) — verifikationerna skapas automatiskt. Ack. avskrivning beräknad t.o.m. ' +
+      esc(until) +
+      ".</p>" +
+      (assets.length
+        ? '<table class="data"><thead><tr><th>Tillgång</th><th>Inköpt</th><th class="num">Anskaffningsvärde</th><th>Livslängd</th><th class="num">Ack. avskrivning</th><th class="num">Bokfört värde</th><th></th></tr></thead><tbody>' +
+          rows +
+          "</tbody></table>"
+        : '<p class="muted">Inga tillgångar registrerade. Inventarier över ett halvt prisbasbelopp bör skrivas av — billigare kan kostnadsföras direkt som utgift.</p>') +
+      "</div>"
+    );
+  }
+
+  function assetForm(a) {
+    return (
+      "<h2>" +
+      (a.name ? "Redigera tillgång" : "Ny tillgång") +
+      "</h2>" +
+      '<div class="form-grid">' +
+      '<div class="field full"><label>Beskrivning</label><input type="text" data-af="name" value="' +
+      esc(a.name) +
+      '" placeholder="t.ex. MacBook Pro 16&quot;"></div>' +
+      '<div class="field"><label>Inköpsdatum</label><input type="date" data-af="date" value="' +
+      esc(a.date) +
+      '"></div>' +
+      '<div class="field"><label>Anskaffningsvärde exkl moms (kr)</label><input type="text" inputmode="decimal" data-af="cost" value="' +
+      esc(a.cost) +
+      '"></div>' +
+      '<div class="field"><label>Nyttjandeperiod (år)</label><input type="number" min="1" max="50" data-af="lifeYears" value="' +
+      esc(a.lifeYears) +
+      '"></div>' +
+      "</div>" +
+      '<div class="modal-foot"><button class="btn btn-ghost" data-action="close-modal">Avbryt</button>' +
+      '<button class="btn btn-primary" data-action="save-asset" data-id="' +
+      a.id +
+      '">Spara tillgång</button></div>'
+    );
+  }
+
+  function saveAsset(id) {
+    const existing = S().getAsset(id);
+    const a = existing || S().newAsset();
+    a.id = id;
+    modalEl.querySelectorAll("[data-af]").forEach((inp) => {
+      const key = inp.getAttribute("data-af");
+      let v = inp.value;
+      if (key === "cost") v = C().toNum(v);
+      if (key === "lifeYears") v = Math.max(1, parseInt(v, 10) || 5);
+      a[key] = v;
+    });
+    if (!a.name) return toast("Tillgången behöver en beskrivning.", "warn");
+    if (!a.cost) return toast("Ange anskaffningsvärde.", "warn");
+    if (!a.companyId) {
+      const co = S().getActiveCompany();
+      a.companyId = co ? co.id : null;
+    }
+    S().upsertAsset(a);
+    closeModal();
+    toast("Tillgång sparad — inköp och avskrivningar bokförs automatiskt.");
+    render();
+  }
+
+  /* ── Manuell verifikation ─────────────────────────────────────────────── */
+  let mvDraft = null;
+
+  function accountOptions(sel) {
+    const A = Faktura.Bok.ACCOUNTS;
+    return (
+      '<option value="">— konto —</option>' +
+      Object.keys(A)
+        .map(
+          (a) =>
+            '<option value="' +
+            a +
+            '"' +
+            (String(sel) === String(a) ? " selected" : "") +
+            ">" +
+            a +
+            " " +
+            esc(A[a]) +
+            "</option>"
+        )
+        .join("")
+    );
+  }
+
+  function mvBalanceText() {
+    const d = C().round2(mvDraft.lines.reduce((s, l) => s + C().toNum(l.debit), 0));
+    const c = C().round2(mvDraft.lines.reduce((s, l) => s + C().toNum(l.credit), 0));
+    const diff = C().round2(d - c);
+    return (
+      "Debet " +
+      C().num(d) +
+      " · Kredit " +
+      C().num(c) +
+      (Math.abs(diff) < 0.005 && d > 0 ? "  ✓ balanserar" : Math.abs(diff) >= 0.005 ? "  — diff " + C().num(diff) : "")
+    );
+  }
+
+  function manualForm() {
+    const mv = mvDraft;
+    const rows = mv.lines
+      .map(
+        (l, i) =>
+          '<tr><td><select data-mvl="' +
+          i +
+          '" data-key="account">' +
+          accountOptions(l.account) +
+          "</select></td>" +
+          '<td class="num" style="width:110px"><input type="text" inputmode="decimal" data-mvl="' +
+          i +
+          '" data-key="debit" value="' +
+          esc(l.debit || "") +
+          '"></td>' +
+          '<td class="num" style="width:110px"><input type="text" inputmode="decimal" data-mvl="' +
+          i +
+          '" data-key="credit" value="' +
+          esc(l.credit || "") +
+          '"></td>' +
+          '<td style="width:30px"><button class="line-del" data-action="del-mv-line" data-id="' +
+          i +
+          '" title="Ta bort rad">×</button></td></tr>'
+      )
+      .join("");
+    return (
+      "<h2>Manuell verifikation</h2>" +
+      '<p class="muted small">För allt som inte bokförs automatiskt: aktiekapital vid start, banklån, utdelning, rättelser m.m.</p>' +
+      '<div class="form-grid">' +
+      '<div class="field"><label>Datum</label><input type="date" data-mv="date" value="' +
+      esc(mv.date) +
+      '"></div>' +
+      '<div class="field"><label>Text</label><input type="text" data-mv="text" value="' +
+      esc(mv.text) +
+      '" placeholder="t.ex. Insättning aktiekapital"></div>' +
+      "</div>" +
+      '<table class="lines" style="margin-top:12px"><thead><tr><th>Konto</th><th>Debet</th><th>Kredit</th><th></th></tr></thead><tbody>' +
+      rows +
+      "</tbody></table>" +
+      '<div class="btn-row" style="margin-top:10px;align-items:center">' +
+      '<button class="btn btn-ghost btn-sm" data-action="add-mv-line">+ Rad</button>' +
+      '<span class="small muted" id="mvBalance" style="margin-left:auto">' +
+      mvBalanceText() +
+      "</span></div>" +
+      '<div class="modal-foot"><button class="btn btn-ghost" data-action="close-modal">Avbryt</button>' +
+      '<button class="btn btn-primary" data-action="save-manual">Bokför</button></div>'
+    );
+  }
+
+  function saveManual() {
+    const mv = mvDraft;
+    mv.lines = mv.lines.filter((l) => l.account && (C().toNum(l.debit) || C().toNum(l.credit)));
+    const d = C().round2(mv.lines.reduce((s, l) => s + C().toNum(l.debit), 0));
+    const c = C().round2(mv.lines.reduce((s, l) => s + C().toNum(l.credit), 0));
+    if (mv.lines.length < 2) return toast("Minst två rader med konto behövs.", "warn");
+    if (Math.abs(d - c) >= 0.005) return toast("Verifikationen balanserar inte (debet ≠ kredit).", "err");
+    if (d <= 0) return toast("Beloppen är noll.", "warn");
+    if (!mv.companyId) {
+      const co = S().getActiveCompany();
+      mv.companyId = co ? co.id : null;
+    }
+    S().upsertManualVer(mv);
+    mvDraft = null;
+    closeModal();
+    toast("Verifikation bokförd.");
+    render();
+  }
+
+  /* ── Rapporter (RR + BR) ──────────────────────────────────────────────── */
+  function bokRapporter(cid) {
+    const rr = Faktura.Bok.resultatrakning(cid, bokFrom, bokTo);
+    const br = Faktura.Bok.balansrakning(cid, bokFrom, bokTo);
+    const row = (label, val, strong, indent) =>
+      "<tr" +
+      (strong ? ' style="font-weight:700"' : "") +
+      "><td" +
+      (indent ? ' style="padding-left:24px"' : "") +
+      ">" +
+      esc(label) +
+      '</td><td class="num">' +
+      C().num(val) +
+      " kr</td></tr>";
+    const rrRows =
+      row("Rörelsens intäkter", rr.revenue, true) +
+      (rr.goods ? row("Råvaror och förnödenheter", -rr.goods, false, true) : "") +
+      (rr.external ? row("Övriga externa kostnader", -rr.external, false, true) : "") +
+      (rr.personnel ? row("Personalkostnader", -rr.personnel, false, true) : "") +
+      (rr.depreciation ? row("Avskrivningar", -rr.depreciation, false, true) : "") +
+      (rr.otherOp ? row("Övriga rörelsekostnader", -rr.otherOp, false, true) : "") +
+      row("Rörelseresultat", rr.ebit, true) +
+      (rr.finIncome ? row("Finansiella intäkter", rr.finIncome, false, true) : "") +
+      (rr.finCost ? row("Finansiella kostnader", -rr.finCost, false, true) : "") +
+      row("Resultat före skatt", rr.resultatForeSkatt, true) +
+      (rr.tax ? row("Skatt på årets resultat", -rr.tax, false, true) : "") +
+      row("Periodens resultat", rr.result, true);
+    const brRows =
+      '<tr><td colspan="2" style="font-weight:700;color:var(--sage-900)">Tillgångar</td></tr>' +
+      row("Anläggningstillgångar", br.anlaggning, false, true) +
+      row("Omsättningstillgångar", br.omsattning, false, true) +
+      row("Summa tillgångar", br.tillgangar, true) +
+      '<tr><td colspan="2" style="font-weight:700;color:var(--sage-900);padding-top:14px">Eget kapital och skulder</td></tr>' +
+      row("Eget kapital", br.egetKapital, false, true) +
+      row("Periodens resultat (beräknat)", br.beraknatResultat, false, true) +
+      (br.langfristiga ? row("Långfristiga skulder", br.langfristiga, false, true) : "") +
+      row("Kortfristiga skulder", br.kortfristiga, false, true) +
+      row("Summa eget kapital och skulder", br.summaEKSkulder, true);
+    return (
+      '<div class="card"><h2>Resultaträkning ' +
+      esc(bokFrom) +
+      " – " +
+      esc(bokTo) +
+      '</h2><table class="data"><tbody>' +
+      rrRows +
+      "</tbody></table></div>" +
+      '<div class="card"><h2>Balansräkning per ' +
+      esc(bokTo) +
+      '</h2><table class="data"><tbody>' +
+      brRows +
+      "</tbody></table>" +
+      (br.balanced
+        ? '<p class="compliance-ok" style="margin-top:10px">✓ Balansräkningen balanserar.</p>'
+        : '<p class="small" style="color:var(--err);margin-top:10px">Obs: balanserar inte — kontrollera verifikationerna.</p>') +
+      "</div>"
+    );
+  }
+
+  /* ── Årsavslut ────────────────────────────────────────────────────────── */
+  function bokArsavslut(cid) {
+    const t = Faktura.Bok.taxEstimate(cid, bokFrom, bokTo);
+    const items = [
+      "Alla kundfakturor för året är bokförda (markerade som skickade/betalda).",
+      "Alla utgifter och leverantörsfakturor är registrerade under Utgifter.",
+      "Alla lönekörningar är registrerade och AGI inlämnad varje månad.",
+      "Avskrivningar är bokförda (sker automatiskt under Tillgångar).",
+      "Momsdeklarationerna för årets perioder är inlämnade (se Momsrapport).",
+      "Bolagsskatten är bokförd (knappen nedan).",
+      "SIE-fil exporterad till redovisningskonsult för årsredovisning (K2) till Bolagsverket.",
+      "Årsstämma hålls och ev. utdelning beslutas (styr K10-utrymmet).",
+    ];
+    return (
+      '<div class="card"><h2>Skatteberäkning ' +
+      esc(bokFrom.slice(0, 4)) +
+      "</h2>" +
+      '<table class="data"><tbody>' +
+      "<tr><td>Resultat före skatt</td><td class=\"num\">" +
+      C().num(t.resultatForeSkatt) +
+      " kr</td></tr>" +
+      '<tr><td>Beräknad bolagsskatt (' +
+      C().num(Faktura.Bok.TAX_RATE_AB * 100, 1) +
+      ' %)</td><td class="num">' +
+      C().num(t.beraknadSkatt) +
+      " kr</td></tr>" +
+      '<tr><td>Redan bokförd skatt</td><td class="num">' +
+      C().num(t.bokfordSkatt) +
+      " kr</td></tr>" +
+      '<tr style="font-weight:700"><td>Kvar att bokföra</td><td class="num">' +
+      C().num(t.resterande) +
+      " kr</td></tr>" +
+      "</tbody></table>" +
+      '<div class="btn-row" style="margin-top:14px">' +
+      '<button class="btn btn-primary" data-action="book-tax"' +
+      (t.resterande > 0 ? "" : " disabled") +
+      ">Bokför bolagsskatt (8910/2510)</button></div>" +
+      '<p class="muted small" style="margin-top:10px">Estimat utan skattemässiga justeringar (ej avdragsgilla kostnader, periodiseringsfonder m.m.) — stäm av med din konsult.</p>' +
+      "</div>" +
+      '<div class="card"><h2>Checklista årsavslut</h2><ul class="checklist">' +
+      items.map((i) => '<li><span class="dot" style="background:var(--sage-500)">·</span><span>' + esc(i) + "</span></li>").join("") +
+      "</ul></div>"
     );
   }
 
@@ -1648,6 +2083,74 @@
       S().deleteExpense(id);
       render();
     },
+    // — lön —
+    "new-payroll": () => {
+      const co = S().getActiveCompany();
+      if (!co) return toast("Skapa ett bolag först.", "warn");
+      openModal(payrollForm(S().newPayroll({ companyId: co.id })));
+    },
+    "edit-payroll": (id) => openModal(payrollForm(S().getPayroll(id))),
+    "save-payroll": (id) => savePayroll(id),
+    "del-payroll": (id) => {
+      if (!confirm("Radera lönekörningen?")) return;
+      S().deletePayroll(id);
+      render();
+    },
+    // — tillgångar —
+    "new-asset": () => {
+      const co = S().getActiveCompany();
+      if (!co) return toast("Skapa ett bolag först.", "warn");
+      openModal(assetForm(S().newAsset({ companyId: co.id })));
+    },
+    "edit-asset": (id) => openModal(assetForm(S().getAsset(id))),
+    "save-asset": (id) => saveAsset(id),
+    "del-asset": (id) => {
+      if (!confirm("Radera tillgången (inköp + avskrivningar försvinner ur bokföringen)?")) return;
+      S().deleteAsset(id);
+      render();
+    },
+    // — manuell verifikation —
+    "new-manual": () => {
+      const co = S().getActiveCompany();
+      if (!co) return toast("Skapa ett bolag först.", "warn");
+      mvDraft = S().newManualVer({ companyId: co.id });
+      openModal(manualForm());
+    },
+    "add-mv-line": () => {
+      mvDraft.lines.push({ account: "", debit: 0, credit: 0 });
+      openModal(manualForm());
+    },
+    "del-mv-line": (idx) => {
+      mvDraft.lines.splice(parseInt(idx, 10), 1);
+      if (mvDraft.lines.length < 2) mvDraft.lines.push({ account: "", debit: 0, credit: 0 });
+      openModal(manualForm());
+    },
+    "save-manual": () => saveManual(),
+    "del-manual": (id) => {
+      if (!confirm("Radera den manuella verifikationen?")) return;
+      S().deleteManualVer(id);
+      render();
+    },
+    // — årsavslut —
+    "book-tax": () => {
+      const co = S().getActiveCompany();
+      if (!co) return;
+      const t = Faktura.Bok.taxEstimate(co.id, bokFrom, bokTo);
+      if (t.resterande <= 0) return toast("Ingen skatt kvar att bokföra.", "warn");
+      S().upsertManualVer(
+        S().newManualVer({
+          companyId: co.id,
+          date: bokTo,
+          text: "Bokförd bolagsskatt " + bokFrom.slice(0, 4),
+          lines: [
+            { account: "8910", debit: t.resterande, credit: 0 },
+            { account: "2510", debit: 0, credit: t.resterande },
+          ],
+        })
+      );
+      toast("Bolagsskatt " + C().num(t.resterande) + " kr bokförd.");
+      render();
+    },
     "export-sie": () => {
       const co = S().getActiveCompany();
       if (!co) return toast("Välj ett bolag först.", "warn");
@@ -1737,6 +2240,18 @@
     if (t.hasAttribute("data-setting-check")) {
       setPath(S().getState().settings, t.getAttribute("data-setting-check"), t.checked);
       S().save();
+      return;
+    }
+    // Manuell verifikation: huvudfält + rader (live-balans)
+    if (t.hasAttribute("data-mv")) {
+      mvDraft[t.getAttribute("data-mv")] = t.value;
+      return;
+    }
+    if (t.hasAttribute("data-mvl")) {
+      const i = parseInt(t.getAttribute("data-mvl"), 10);
+      mvDraft.lines[i][t.getAttribute("data-key")] = t.value;
+      const b = document.getElementById("mvBalance");
+      if (b) b.textContent = mvBalanceText();
       return;
     }
     // Live-validering av org.nr / momsnr i kundformuläret

@@ -26,6 +26,9 @@
       customers: [],
       invoices: [],
       expenses: [],
+      manualVers: [],
+      payrolls: [],
+      assets: [],
       settings: {
         emailjs: { publicKey: "", serviceId: "", templateId: "" },
         drive: { clientId: "", fileId: "", connectedEmail: "", autoSync: false },
@@ -172,6 +175,54 @@
         account: "6000", // BAS-konto (kostnadskategori)
         paid: false,
         paymentDate: "",
+      },
+      over || {}
+    );
+  }
+
+  /* Manuell verifikation — fri dubbel bokföring. */
+  function newManualVer(over) {
+    return Object.assign(
+      {
+        id: uid("mv"),
+        companyId: null,
+        date: todayISO(),
+        text: "",
+        lines: [
+          { account: "", debit: 0, credit: 0 },
+          { account: "", debit: 0, credit: 0 },
+        ],
+      },
+      over || {}
+    );
+  }
+
+  /* Lönekörning — en post per anställd och period. */
+  function newPayroll(over) {
+    return Object.assign(
+      {
+        id: uid("pay"),
+        companyId: null,
+        period: todayISO().slice(0, 7), // YYYY-MM
+        employee: "",
+        gross: 0, // bruttolön
+        taxPct: 30, // preliminärskatt % (förenklad — se skattetabell)
+        payDate: todayISO(),
+      },
+      over || {}
+    );
+  }
+
+  /* Anläggningstillgång — inventarier med rak avskrivning. */
+  function newAsset(over) {
+    return Object.assign(
+      {
+        id: uid("as"),
+        companyId: null,
+        name: "",
+        date: todayISO(), // inköpsdatum
+        cost: 0, // anskaffningsvärde exkl moms
+        lifeYears: 5, // nyttjandeperiod
       },
       over || {}
     );
@@ -356,6 +407,32 @@
     save();
   }
 
+  /* ── Generisk CRUD-fabrik för enkla listor ────────────────────────────── */
+  function makeCrud(key) {
+    return {
+      list: (companyId) =>
+        state[key]
+          .filter((x) => !companyId || x.companyId === companyId)
+          .slice()
+          .sort((a, b) => ((a.date || a.payDate || "") < (b.date || b.payDate || "") ? 1 : -1)),
+      get: (id) => state[key].find((x) => x.id === id) || null,
+      upsert: (item) => {
+        const idx = state[key].findIndex((x) => x.id === item.id);
+        if (idx >= 0) state[key][idx] = item;
+        else state[key].push(item);
+        save();
+        return item;
+      },
+      remove: (id) => {
+        state[key] = state[key].filter((x) => x.id !== id);
+        save();
+      },
+    };
+  }
+  const manualCrud = makeCrud("manualVers");
+  const payrollCrud = makeCrud("payrolls");
+  const assetCrud = makeCrud("assets");
+
   /* ── Export / import ──────────────────────────────────────────────────── */
   function exportJSON() {
     return JSON.stringify(state, null, 2);
@@ -369,7 +446,7 @@
         arr.forEach((x) => (m[x.id] = x));
         return m;
       };
-      ["companies", "customers", "invoices", "expenses"].forEach((k) => {
+      ["companies", "customers", "invoices", "expenses", "manualVers", "payrolls", "assets"].forEach((k) => {
         const cur = byId(state[k]);
         (parsed[k] || []).forEach((x) => (cur[x.id] = x));
         state[k] = Object.values(cur);
@@ -422,6 +499,24 @@
     getExpense,
     upsertExpense,
     deleteExpense,
+    // manuella verifikationer
+    newManualVer,
+    listManualVers: manualCrud.list,
+    getManualVer: manualCrud.get,
+    upsertManualVer: manualCrud.upsert,
+    deleteManualVer: manualCrud.remove,
+    // lön
+    newPayroll,
+    listPayrolls: payrollCrud.list,
+    getPayroll: payrollCrud.get,
+    upsertPayroll: payrollCrud.upsert,
+    deletePayroll: payrollCrud.remove,
+    // tillgångar
+    newAsset,
+    listAssets: assetCrud.list,
+    getAsset: assetCrud.get,
+    upsertAsset: assetCrud.upsert,
+    deleteAsset: assetCrud.remove,
     // i/o
     exportJSON,
     importJSON,
