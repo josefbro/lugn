@@ -40,6 +40,13 @@ använda samma app — varje faktura tillhör ett säljarbolag.
   skattemässiga justeringar (INK2S) med SRU-fältkoder, plus export av
   `INFO.SRU` + `BLANKETTER.SRU` för Skatteverkets filöverföring.
   Testa alltid filerna i Skatteverkets testtjänst före skarp inlämning.
+- **Bank** – importera CSV från internetbanken (kolumner auto-detekteras,
+  dubbletter hoppas över). Matcha inbetalningar mot öppna fakturor,
+  utbetalningar mot obetalda utgifter, eller kategorisera direkt mot
+  BAS-konto. Allt går att ångra.
+- **Revisionslogg** – append-only behandlingshistorik med hash-kedja
+  (manipulation bryter kedjan). Loggar alla bokföringshändelser;
+  exporteras som CSV och ingår i JSON-backupen.
 
 ## Filer
 
